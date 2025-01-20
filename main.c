@@ -24,11 +24,11 @@ void DrawPlayer(Player *player);
 typedef struct {
     void (*DrawTutorial)(void);
     void (*DrawWindow)(int32_t *map);
-    void (*DrawPlayer)(Player *player); // Corrected function pointer declaration
+    void (*DrawPlayer)(Player *player);
 } Drawings;
 
 void DrawPlayer(Player *player) {
-    DrawRectangle(player->position.x, player->position.y, TILE_WIDTH * 2, TILE_HEIGHT * 5, PURPLE);
+    DrawRectangle(player->position.x, player->position.y, TILE_WIDTH * 5, TILE_HEIGHT * 1, PURPLE);
 }
 
 void DrawTutorial() {
@@ -47,11 +47,18 @@ void DrawWindow(int32_t *map) {
         }
     }
 }
+void UpdatePlayer(Player *player, float deltaTime)
 
-void UpdatePlayer(Player *player, float delta) {
-    if (IsKeyDown(KEY_LEFT)) player->position.x -= player->playerSpeed * delta;
-    if (IsKeyDown(KEY_RIGHT)) player->position.x += player->playerSpeed * delta;
-}
+    {
+        if (IsKeyDown(KEY_LEFT))
+        {
+            player->position.x -= player->playerSpeed * deltaTime;
+        }
+        if (IsKeyDown(KEY_RIGHT))
+        {
+            player->position.x += player->playerSpeed * deltaTime;
+        }
+    }
 
 int main(void)
 {
@@ -74,7 +81,6 @@ int main(void)
     player.position = (Vector2) {100, 100};
     player.playerSpeed = 4.0f;
 
-    SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
