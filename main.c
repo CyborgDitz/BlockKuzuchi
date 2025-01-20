@@ -3,17 +3,18 @@
 
 #include "raylib.h"
 
-#define G_WINDOW_HEIGHT 1024
-#define G_WINDOW_WIDTH 1024
+#define gWindowHeight 1024
+#define gWindowWidth 1024
 
-#define G_TILE_WIDTH 32
-#define G_TILE_HEIGHT 32
+#define gTileWidth 32
+#define gTileHeight 32
 
 typedef struct {
     int32_t x, y;
 } position;
 
-int32_t map[G_WINDOW_HEIGHT][G_WINDOW_WIDTH];
+
+int32_t map[gWindowHeight][gWindowWidth];
 
 typedef struct {
     int32_t width;
@@ -23,14 +24,20 @@ typedef struct {
 } blockData;
 //todo blocks.
 
+void DrawTutorial()
+{
+    DrawRectangle( 10, 10, 250, 113, Fade(SKYBLUE, 0.5f));
+    DrawRectangleLines( 10, 10, 250, 113, BLUE);
+    DrawText("Controls:", 20, 20, 10, BLACK);
+    DrawText("- Right/Left to move", 40, 40, 10, DARKGRAY);
+};
 int main(void)
 {
     InitWindow(800, 600, "BlockKuzuchi");
-    SetTargetFPS(60);
 
-    for (int i = 0; i < G_WINDOW_HEIGHT; i++) {
-        for (int j = 0; j < G_WINDOW_WIDTH; j++) {
-            if ((i * G_WINDOW_WIDTH + j) % 2 == 0) {
+    for (int i = 0; i < gWindowHeight; i++) {
+        for (int j = 0; j < gWindowWidth; j++) {
+            if ((i * gWindowWidth + j) % 2 == 0) {
                 map[i][j] = 1;
             }
         }
@@ -40,14 +47,14 @@ int main(void)
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        for (int i = 0; i < G_WINDOW_HEIGHT; i++) {
-            for (int j = 0; j < G_WINDOW_WIDTH; j++) {
+        for (int i = 0; i < gWindowHeight; i++) {
+            for (int j = 0; j < gWindowWidth; j++) {
                 if (map[i][j] == 1) {
-                    DrawRectangle(j * G_TILE_WIDTH, i * G_TILE_HEIGHT, G_TILE_WIDTH, G_TILE_HEIGHT, WHITE);
+                    DrawRectangle(j * gTileWidth, i * gTileHeight, gTileWidth, gTileHeight, WHITE);
                 }
             }
         }
-
+        DrawTutorial();
         EndDrawing();
     }
 
