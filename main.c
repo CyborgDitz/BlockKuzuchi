@@ -27,6 +27,13 @@ typedef struct {
     void (*DrawPlayer)(Player *player);
 } Drawings;
 
+Player InitializePlayer(Vector2 position, float speed) {
+    Player player = {0};
+    player.position = position;
+    player.playerSpeed = speed;
+    return player;
+}
+
 void DrawPlayer(Player *player) {
     DrawRectangle(player->position.x, player->position.y, TILE_WIDTH * 5, TILE_HEIGHT * 1, PURPLE);
 }
@@ -50,11 +57,11 @@ void DrawWindow(int32_t *map) {
 void UpdatePlayer(Player *player, float deltaTime)
 
     {
-        if (IsKeyDown(KEY_LEFT))
+        if (IsKeyDown(KEY_A))
         {
             player->position.x -= player->playerSpeed * deltaTime;
         }
-        if (IsKeyDown(KEY_RIGHT))
+        if (IsKeyDown(KEY_D))
         {
             player->position.x += player->playerSpeed * deltaTime;
         }
@@ -63,6 +70,8 @@ void UpdatePlayer(Player *player, float deltaTime)
 int main(void)
 {
     InitWindow(800, 600, "BlockKuzuchi");
+
+    Player player = InitializePlayer((Vector2){100, 100}, 69.0f);
 
     for (int i = 0; i < WINDOW_HEIGHT; i++) {
         for (int j = 0; j < WINDOW_WIDTH; j++) {
@@ -76,11 +85,6 @@ int main(void)
     myDrawings.DrawTutorial = DrawTutorial;
     myDrawings.DrawWindow = DrawWindow;
     myDrawings.DrawPlayer = DrawPlayer;
-
-    Player player = {0};
-    player.position = (Vector2) {100, 100};
-    player.playerSpeed = 4.0f;
-
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
