@@ -26,6 +26,8 @@ typedef struct {
     float playerSpeed;
     bool isActive;
     int lives;
+    float width;
+    float height;
 } Player;
 
 typedef struct {
@@ -36,20 +38,7 @@ typedef struct {
     bool isActive;
 } Ball;
 
-typedef enum {
-    BLOCK_COLLISION,
-    PLAYER_COLLISION,
-    SCREEN_COLLISION,
-    LIFE_METER_COLLISION,
-    NUM_COLLISION_TYPES
-} CollisionType;
 
-typedef struct {
-    Vector2 position;
-    float width;
-    float height;
-    CollisionType type;
-} Collider;
 
 Player InitializePlayer(Vector2 position, float speed) {
     Player player = {0};
@@ -57,6 +46,9 @@ Player InitializePlayer(Vector2 position, float speed) {
     player.playerSpeed = speed;
     player.velocity = (Vector2){0, 0};
     player.lives = 3;
+    player.position = position;
+    player.width = TILE_WIDTH * 5;
+    player.height = TILE_HEIGHT;
     return player;
 }
 
@@ -65,14 +57,15 @@ Ball InitializeBall(float x, float y, float radius, float speed) {
     ball.position.x = x;
     ball.position.y = y;
     ball.radius = radius;
-    ball.speed = speed * 2.0f;
+    ball.speed = speed * 6.0f;
     ball.velocity = (Vector2){ball.speed, -ball.speed};
     ball.isActive = false;
     return ball;
 }
 
 void DrawPlayer(Player *player) {
-    DrawRectangle(player->position.x, player->position.y, TILE_WIDTH * 5, TILE_HEIGHT * 1, PURPLE);
+    DrawRectangle(player->position.x, player->position.y, player->width, player->height, PURPLE);
+    DrawRectangleLines(player->position.x, player->position.y, player->width, player->height, DARKPURPLE);
 }
 
 void DrawBall(Ball *ball) {
@@ -81,14 +74,13 @@ void DrawBall(Ball *ball) {
 
 void DrawLifeMeter(Player *player) {
     int maxLives = 3;
-    int meterWidth = TILE_WIDTH * 10;
-    int meterHeight = TILE_HEIGHT / 2;
-    int remainingLives = player->lives;
-    int currentMeterWidth = (meterWidth * remainingLives) / maxLives;
+    int lifeBarWidth = TILE_WIDTH * 10;
+    int lifeBarHeight = TILE_HEIGHT / 2;
+    int currentLifeWidth = (lifeBarWidth * player->lives) / maxLives;
 
-    DrawRectangle((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, meterWidth, meterHeight, GRAY);
-    DrawRectangle((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, currentMeterWidth, meterHeight, GREEN);
-    DrawRectangleLines((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, meterWidth, meterHeight, BLACK);
+    DrawRectangle(0, WINDOW_HEIGHT - lifeBarHeight - 10, lifeBarWidth, lifeBarHeight, GRAY);
+    DrawRectangle(0, WINDOW_HEIGHT - lifeBarHeight - 10, currentLifeWidth, lifeBarHeight, GREEN);
+    DrawRectangleLines(0, WINDOW_HEIGHT - lifeBarHeight - 10, lifeBarWidth, lifeBarHeight, BLACK);
 }
 
 void DrawTutorial() {
@@ -131,45 +123,16 @@ void DrawWindow(BlockData *blocks, int blockSize) {
     }
 }
 
-bool CheckCollisionBallWithCollider(Ball *ball, Collider *collider) {
-    if (ball->position.x + ball->radius > collider->position.x &&
-        ball->position.x - ball->radius < collider->position.x + collider->width &&
-        ball->position.y + ball->radius > collider->position.y &&
-        ball->position.y - ball->radius < collider->position.y + collider->height) {
-        return true;
+
+void HandleCollision(Ball *ball) {
+    if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
+        ball->velocity.x = -ball->velocity.x;
     }
-    return false;
-}
-
-void HandleCollision(Ball *ball, Collider *collider, CollisionType type) {
-    switch (type) {
-        case BLOCK_COLLISION:
-            ball->velocity.y = -ball->velocity.y;
-            break;
-
-        case PLAYER_COLLISION:
-            ball->velocity.y = -ball->velocity.y;
-            break;
-
-        case SCREEN_COLLISION:
-            if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
-                ball->velocity.x = -ball->velocity.x;
-            }
-            if (ball->position.y - ball->radius < 0) {
-                ball->velocity.y = -ball->velocity.y;
-            }
-            if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
-                ball->velocity.y = -ball->velocity.y;
-                ball->position.y = WINDOW_HEIGHT - ball->radius;
-            }
-            break;
-
-        case LIFE_METER_COLLISION:
-            ball->velocity.y = -ball->velocity.y;
-            break;
-
-        default:
-            break;
+    if (ball->position.y - ball->radius < 0) {
+        ball->velocity.y = -ball->velocity.y;
+    }
+    if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
+        ball->isActive = false;
     }
 }
 
@@ -184,6 +147,8 @@ void UpdatePlayer(Player *player, float deltaTime) {
 
     player->position = Vector2Add(player->position, Vector2Scale(player->velocity, deltaTime));
 
+    player->position = player->position;
+
     if (player->position.x < 0) {
         player->position.x = 0;
     }
@@ -192,71 +157,83 @@ void UpdatePlayer(Player *player, float deltaTime) {
         player->position.x = WINDOW_WIDTH - TILE_WIDTH * 5;
     }
 }
+void UpdateBall(Ball *ball, Player *player, BlockData *blocks, int blockSize, float deltaTime) {
+    if (!ball->isActive) {
+        ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
+        ball->position.y = player->position.y - ball->radius - 5;
 
-void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, int blockSize) {
-    if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
-        ball->isActive = true;
-        ball->velocity.x = 400.0f;
-        ball->velocity.y = -400.0f;
-    }
+        if (IsKeyPressed(KEY_SPACE)) {
+            ball->isActive = true;
 
-    if (ball->isActive) {
+            float angle = GetRandomValue(-45, 45);
+            float radians = DEG2RAD * angle;
+
+            ball->velocity.x = ball->speed * cos(radians);
+            ball->velocity.y = -fabs(ball->speed * sin(radians));
+        }
+    } else {
         ball->position = Vector2Add(ball->position, Vector2Scale(ball->velocity, deltaTime));
 
-        int row = (int)(ball->position.y / TILE_HEIGHT);
-        int col = (int)(ball->position.x / blockSize);
+        if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
+            ball->isActive = false;
+            player->lives--;
+        }
 
-        if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / blockSize)) {
+        int row = ball->position.y / TILE_HEIGHT;
+        int col = ball->position.x / blockSize;
+
+        if (row >= 0 && row < WINDOW_HEIGHT / TILE_HEIGHT && col >= 0 && col < WINDOW_WIDTH / blockSize) {
             BlockData *block = &blocks[row * (WINDOW_WIDTH / blockSize) + col];
             if (block->isActive) {
-                Collider blockCollider = { (Vector2){col * blockSize, row * TILE_HEIGHT}, blockSize, TILE_HEIGHT, BLOCK_COLLISION };
-                if (CheckCollisionBallWithCollider(ball, &blockCollider)) {
-                    block->isActive = false;
-                    HandleCollision(ball, &blockCollider, BLOCK_COLLISION);
-                }
+                block->isActive = false;
+                ball->velocity.y = -ball->velocity.y;
             }
         }
 
-        Collider playerCollider = { player->position, TILE_WIDTH * 5, TILE_HEIGHT, PLAYER_COLLISION };
-        if (CheckCollisionBallWithCollider(ball, &playerCollider)) {
-            HandleCollision(ball, &playerCollider, PLAYER_COLLISION);
+        if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
+            ball->velocity.x = -ball->velocity.x;
         }
-
-        Collider lifeMeterCollider = { (Vector2){(WINDOW_WIDTH - TILE_WIDTH * 10) / 2, WINDOW_HEIGHT - TILE_HEIGHT / 2 - 10}, TILE_WIDTH * 10, TILE_HEIGHT / 2, LIFE_METER_COLLISION };
-        if (CheckCollisionBallWithCollider(ball, &lifeMeterCollider)) {
-            HandleCollision(ball, &lifeMeterCollider, LIFE_METER_COLLISION);
+        if (ball->position.y - ball->radius < 0) {
+            ball->velocity.y = -ball->velocity.y;
         }
-
-        Collider screenCollider = { (Vector2){0, 0}, WINDOW_WIDTH, WINDOW_HEIGHT, SCREEN_COLLISION };
-        HandleCollision(ball, &screenCollider, SCREEN_COLLISION);
-
-    } else {
-        ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
-        ball->position.y = player->position.y - ball->radius - 5;
     }
+}
+
+
+bool AreBlocksCleared(BlockData *blocks, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (blocks[i * cols + j].isActive) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
 
     int blockSize = TILE_WIDTH * 2;
-    BlockData blocks[WINDOW_HEIGHT / TILE_HEIGHT][WINDOW_WIDTH / blockSize];
+    int rows = WINDOW_HEIGHT / TILE_HEIGHT;
+    int cols = WINDOW_WIDTH / blockSize;
+    BlockData blocks[rows * cols];
 
-    for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
-        for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
-            blocks[i][j].isActive = false;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            blocks[i * cols + j].isActive = false;
         }
     }
 
-    for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
-        blocks[0][j].isActive = true;
-        blocks[0][j].type = WHITE_BLOCK;
+    for (int j = 0; j < cols; j++) {
+        blocks[0 * cols + j].isActive = true;
+        blocks[0 * cols + j].type = WHITE_BLOCK;
 
-        blocks[1][j].isActive = true;
-        blocks[1][j].type = BLACK_BLOCK;
+        blocks[1 * cols + j].isActive = true;
+        blocks[1 * cols + j].type = BLACK_BLOCK;
 
-        blocks[2][j].isActive = true;
-        blocks[2][j].type = BLUE_BLOCK;
+        blocks[2 * cols + j].isActive = true;
+        blocks[2 * cols + j].type = BLUE_BLOCK;
     }
 
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
@@ -264,27 +241,65 @@ int main(void) {
     Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);
 
     bool showTutorial = true;
+    bool gameEnded = false;
+    bool playerWon = false;
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
 
-        if (IsKeyPressed(KEY_SPACE)) {
+        if (IsKeyPressed(KEY_SPACE) && showTutorial) {
             showTutorial = false;
         }
 
-        UpdatePlayer(&player, deltaTime);
-        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, blockSize);
+        if (!gameEnded) {
+            UpdatePlayer(&player, deltaTime);
+            UpdateBall(&ball, &player, blocks, blockSize, deltaTime);
+
+            if (player.lives <= 0) {
+                gameEnded = true;
+                playerWon = false;
+            }
+
+            if (AreBlocksCleared(blocks, rows, cols)) {
+                gameEnded = true;
+                playerWon = true;
+            }
+        } else {
+            if (IsKeyPressed(KEY_R)) {
+                player = InitializePlayer(playerPosition, 300.0f);
+                ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);
+                showTutorial = true;
+                gameEnded = false;
+
+                for (int j = 0; j < cols; j++) {
+                    blocks[0 * cols + j].isActive = true;
+                    blocks[0 * cols + j].type = WHITE_BLOCK;
+
+                    blocks[1 * cols + j].isActive = true;
+                    blocks[1 * cols + j].type = BLACK_BLOCK;
+
+                    blocks[2 * cols + j].isActive = true;
+                    blocks[2 * cols + j].type = BLUE_BLOCK;
+                }
+            }
+        }
 
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        DrawWindow((BlockData *)blocks, blockSize);
         if (showTutorial) {
             DrawTutorial();
+        } else {
+            DrawWindow(blocks, blockSize);
+            DrawPlayer(&player);
+            DrawBall(&ball);
+            DrawLifeMeter(&player);
+
+            if (gameEnded) {
+                const char *message = playerWon ? "You Win! Press R to Restart" : "Game Over! Press R to Restart";
+                DrawText(message, WINDOW_WIDTH / 2 - MeasureText(message, 20) / 2, WINDOW_HEIGHT / 2, 20, RED);
+            }
         }
-        DrawPlayer(&player);
-        DrawBall(&ball);
-        DrawLifeMeter(&player);
 
         EndDrawing();
     }
