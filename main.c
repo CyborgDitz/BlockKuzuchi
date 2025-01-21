@@ -36,23 +36,20 @@ typedef struct {
     bool isActive;
 } Ball;
 
-typedef struct {
-    bool collisionOccurred;
-} CollisionData;
-
-void DrawTutorial(void);
-void DrawWindow(BlockData *blocks, int blockSize);
-void DrawPlayer(Player *player);
-void DrawBall(Ball *ball);
-void DrawBlocks(BlockData *blocks, int blockSize);
+typedef enum {
+    BLOCK_COLLISION,
+    PLAYER_COLLISION,
+    SCREEN_COLLISION,
+    LIFE_METER_COLLISION,
+    NUM_COLLISION_TYPES
+} CollisionType;
 
 typedef struct {
-    void (*DrawTutorial)(void);
-    void (*DrawWindow)(BlockData *blocks, int blockSize);
-    void (*DrawPlayer)(Player *player);
-    void (*DrawBall)(Ball *ball);
-    void (*DrawBlocks)(BlockData *blocks, int blockSize);
-} Drawings;
+    Vector2 position;
+    float width;
+    float height;
+    CollisionType type;
+} Collider;
 
 Player InitializePlayer(Vector2 position, float speed) {
     Player player = {0};
@@ -80,6 +77,18 @@ void DrawPlayer(Player *player) {
 
 void DrawBall(Ball *ball) {
     DrawCircleV(ball->position, ball->radius, BLACK);
+}
+
+void DrawLifeMeter(Player *player) {
+    int maxLives = 3;
+    int meterWidth = TILE_WIDTH * 10;
+    int meterHeight = TILE_HEIGHT / 2;
+    int remainingLives = player->lives;
+    int currentMeterWidth = (meterWidth * remainingLives) / maxLives;
+
+    DrawRectangle((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, meterWidth, meterHeight, GRAY);
+    DrawRectangle((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, currentMeterWidth, meterHeight, GREEN);
+    DrawRectangleLines((WINDOW_WIDTH - meterWidth) / 2, WINDOW_HEIGHT - meterHeight - 10, meterWidth, meterHeight, BLACK);
 }
 
 void DrawTutorial() {
@@ -122,33 +131,49 @@ void DrawWindow(BlockData *blocks, int blockSize) {
     }
 }
 
-void DrawBlocks(BlockData *blocks, int blockSize) {
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
-            BlockData *block = &blocks[i * (WINDOW_WIDTH / blockSize) + j];
-            if (block->isActive) {
-                Color blockColor = BLACK;
-                switch (block->type) {
-                    case WHITE_BLOCK:
-                        blockColor = WHITE;
-                        break;
-                    case BLACK_BLOCK:
-                        blockColor = BLACK;
-                        break;
-                    case BLUE_BLOCK:
-                        blockColor = BLUE;
-                        break;
-                    default:
-                        blockColor = BLACK;
-                }
-                DrawRectangle(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, blockColor);
-                DrawRectangleLines(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, PURPLE);
+bool CheckCollisionBallWithCollider(Ball *ball, Collider *collider) {
+    if (ball->position.x + ball->radius > collider->position.x &&
+        ball->position.x - ball->radius < collider->position.x + collider->width &&
+        ball->position.y + ball->radius > collider->position.y &&
+        ball->position.y - ball->radius < collider->position.y + collider->height) {
+        return true;
+    }
+    return false;
+}
+
+void HandleCollision(Ball *ball, Collider *collider, CollisionType type) {
+    switch (type) {
+        case BLOCK_COLLISION:
+            ball->velocity.y = -ball->velocity.y;
+            break;
+
+        case PLAYER_COLLISION:
+            ball->velocity.y = -ball->velocity.y;
+            break;
+
+        case SCREEN_COLLISION:
+            if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
+                ball->velocity.x = -ball->velocity.x;
             }
-        }
+            if (ball->position.y - ball->radius < 0) {
+                ball->velocity.y = -ball->velocity.y;
+            }
+            if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
+                ball->velocity.y = -ball->velocity.y;
+                ball->position.y = WINDOW_HEIGHT - ball->radius;
+            }
+            break;
+
+        case LIFE_METER_COLLISION:
+            ball->velocity.y = -ball->velocity.y;
+            break;
+
+        default:
+            break;
     }
 }
 
-void UpdatePlayer(Player *player, float deltaTime, CollisionData *collisionData) {
+void UpdatePlayer(Player *player, float deltaTime) {
     if (IsKeyDown(KEY_A)) {
         player->velocity.x = -player->playerSpeed * 2;
     } else if (IsKeyDown(KEY_D)) {
@@ -161,21 +186,18 @@ void UpdatePlayer(Player *player, float deltaTime, CollisionData *collisionData)
 
     if (player->position.x < 0) {
         player->position.x = 0;
-        collisionData->collisionOccurred = true;
     }
 
     if (player->position.x + TILE_WIDTH * 5 > WINDOW_WIDTH) {
         player->position.x = WINDOW_WIDTH - TILE_WIDTH * 5;
-        collisionData->collisionOccurred = true;
     }
 }
 
-void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, CollisionData *collisionData, int blockSize) {
+void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, int blockSize) {
     if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
         ball->isActive = true;
         ball->velocity.x = 400.0f;
         ball->velocity.y = -400.0f;
-        collisionData->collisionOccurred = false;
     }
 
     if (ball->isActive) {
@@ -187,51 +209,32 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
         if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / blockSize)) {
             BlockData *block = &blocks[row * (WINDOW_WIDTH / blockSize) + col];
             if (block->isActive) {
-                bool collisionDetected = false;
-
-                if (ball->position.x - ball->radius < (col * blockSize) + blockSize &&
-                    ball->position.x + ball->radius > col * blockSize &&
-                    ball->position.y + ball->radius > row * TILE_HEIGHT &&
-                    ball->position.y - ball->radius < (row * TILE_HEIGHT) + TILE_HEIGHT) {
-                    collisionDetected = true;
-                }
-
-                if (collisionDetected) {
+                Collider blockCollider = { (Vector2){col * blockSize, row * TILE_HEIGHT}, blockSize, TILE_HEIGHT, BLOCK_COLLISION };
+                if (CheckCollisionBallWithCollider(ball, &blockCollider)) {
                     block->isActive = false;
-                    ball->velocity.y = -ball->velocity.y;
-                    collisionData->collisionOccurred = true;
+                    HandleCollision(ball, &blockCollider, BLOCK_COLLISION);
                 }
             }
         }
 
-        if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
-            ball->velocity.x = -ball->velocity.x;
-            collisionData->collisionOccurred = true;
+        Collider playerCollider = { player->position, TILE_WIDTH * 5, TILE_HEIGHT, PLAYER_COLLISION };
+        if (CheckCollisionBallWithCollider(ball, &playerCollider)) {
+            HandleCollision(ball, &playerCollider, PLAYER_COLLISION);
         }
 
-        if (ball->position.y - ball->radius < 0) {
-            ball->velocity.y = -ball->velocity.y;
-            collisionData->collisionOccurred = true;
+        Collider lifeMeterCollider = { (Vector2){(WINDOW_WIDTH - TILE_WIDTH * 10) / 2, WINDOW_HEIGHT - TILE_HEIGHT / 2 - 10}, TILE_WIDTH * 10, TILE_HEIGHT / 2, LIFE_METER_COLLISION };
+        if (CheckCollisionBallWithCollider(ball, &lifeMeterCollider)) {
+            HandleCollision(ball, &lifeMeterCollider, LIFE_METER_COLLISION);
         }
 
-        if (ball->position.y + ball->radius >= player->position.y &&
-            ball->position.y - ball->radius <= player->position.y + TILE_HEIGHT &&
-            ball->position.x >= player->position.x && ball->position.x <= player->position.x + TILE_WIDTH * 5) {
-            ball->velocity.y = -ball->velocity.y;
-            collisionData->collisionOccurred = true;
-        }
+        Collider screenCollider = { (Vector2){0, 0}, WINDOW_WIDTH, WINDOW_HEIGHT, SCREEN_COLLISION };
+        HandleCollision(ball, &screenCollider, SCREEN_COLLISION);
 
-        if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
-            ball->velocity.y = -ball->velocity.y;
-            ball->position.y = WINDOW_HEIGHT - ball->radius;
-            collisionData->collisionOccurred = true;
-        }
     } else {
         ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
         ball->position.y = player->position.y - ball->radius - 5;
     }
 }
-
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
@@ -260,14 +263,6 @@ int main(void) {
     Player player = InitializePlayer(playerPosition, 300.0f);
     Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);
 
-    Drawings myDrawings;
-    myDrawings.DrawTutorial = DrawTutorial;
-    myDrawings.DrawWindow = DrawWindow;
-    myDrawings.DrawPlayer = DrawPlayer;
-    myDrawings.DrawBall = DrawBall;
-    myDrawings.DrawBlocks = DrawBlocks;
-
-    CollisionData collisionData = {false};
     bool showTutorial = true;
 
     while (!WindowShouldClose()) {
@@ -277,19 +272,19 @@ int main(void) {
             showTutorial = false;
         }
 
-        UpdatePlayer(&player, deltaTime, &collisionData);
-        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, &collisionData, blockSize);
+        UpdatePlayer(&player, deltaTime);
+        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, blockSize);
 
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        myDrawings.DrawWindow((BlockData *)blocks, blockSize);
-        myDrawings.DrawBlocks((BlockData *)blocks, blockSize);
+        DrawWindow((BlockData *)blocks, blockSize);
         if (showTutorial) {
-            myDrawings.DrawTutorial();
+            DrawTutorial();
         }
-        myDrawings.DrawPlayer(&player);
-        myDrawings.DrawBall(&ball);
+        DrawPlayer(&player);
+        DrawBall(&ball);
+        DrawLifeMeter(&player);
 
         EndDrawing();
     }
