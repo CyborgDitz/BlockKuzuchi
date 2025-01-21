@@ -83,12 +83,19 @@ void DrawBall(Ball *ball) {
 }
 
 void DrawTutorial() {
-    DrawRectangle(10, 10, 250, 113, Fade(SKYBLUE, 0.5f));
-    DrawRectangleLines(10, 10, 250, 113, BLUE);
-    DrawText("Controls:", 20, 20, 10, BLACK);
-    DrawText("- A/D to move", 40, 40, 10, DARKGRAY);
-    DrawText("- SPACE to yeet ball", 40, 60, 10, DARKGRAY);
+    int boxWidth = 250;
+    int boxHeight = 113;
+    int centerX = WINDOW_WIDTH / 2 - boxWidth / 2;
+    int centerY = WINDOW_HEIGHT / 2 - boxHeight / 2;
+
+    DrawRectangle(centerX, centerY, boxWidth, boxHeight, Fade(SKYBLUE, 0.5f));
+    DrawRectangleLines(centerX, centerY, boxWidth, boxHeight, BLUE);
+    
+    DrawText("Controls:", centerX + 20, centerY + 20, 14, BLACK);
+    DrawText("- A/D to move", centerX + 20, centerY + 40, 10, DARKGRAY);
+    DrawText("- SPACE to yeet ball", centerX + 20, centerY + 60, 10, DARKGRAY);
 }
+
 
 void DrawWindow(BlockData *blocks, int blockSize) {
     for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
@@ -109,7 +116,10 @@ void DrawWindow(BlockData *blocks, int blockSize) {
                     default:
                         blockColor = BLACK;
                 }
+                // Draw the filled block
                 DrawRectangle(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, blockColor);
+                // Draw the purple border around the block
+                DrawRectangleLines(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, PURPLE);
             }
         }
     }
@@ -134,7 +144,10 @@ void DrawBlocks(BlockData *blocks, int blockSize) {
                     default:
                         blockColor = BLACK;
                 }
+                // Draw the filled block
                 DrawRectangle(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, blockColor);
+                // Draw the purple border around the block
+                DrawRectangleLines(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, PURPLE);
             }
         }
     }
@@ -174,7 +187,7 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
         ball->position = Vector2Add(ball->position, Vector2Scale(ball->velocity, deltaTime));
 
         int row = (int)(ball->position.y / TILE_HEIGHT);
-        int col = (int)(ball->position.x / blockSize);
+        int col = (int)(ball->position.x / blockSize);  // Using blockSize for column calculation
 
         if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / blockSize)) {
             BlockData *block = &blocks[row * (WINDOW_WIDTH / blockSize) + col];
@@ -209,7 +222,7 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
         }
     } else {
         ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
-        ball->position.y = player->position.y - ball->radius - 5;
+        ball->position.y = player->position.y - ball->radius - 5;  // Place the ball above the player
     }
 }
 
@@ -238,7 +251,7 @@ int main(void) {
 
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitializePlayer(playerPosition, 300.0f);
-    Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);
+    Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);  // Ball starts above the player
 
     Drawings myDrawings;
     myDrawings.DrawTutorial = DrawTutorial;
@@ -248,9 +261,14 @@ int main(void) {
     myDrawings.DrawBlocks = DrawBlocks;
 
     CollisionData collisionData = {false};
+    bool showTutorial = true;  // Control whether tutorial is shown
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
+
+        if (IsKeyPressed(KEY_SPACE)) {
+            showTutorial = false;  // Hide tutorial when SPACE is pressed
+        }
 
         UpdatePlayer(&player, deltaTime, &collisionData);
         UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, &collisionData, blockSize);
@@ -260,7 +278,9 @@ int main(void) {
 
         myDrawings.DrawWindow((BlockData *)blocks, blockSize);
         myDrawings.DrawBlocks((BlockData *)blocks, blockSize);
-        myDrawings.DrawTutorial();
+        if (showTutorial) {
+            myDrawings.DrawTutorial();  // Draw tutorial only if showTutorial is true
+        }
         myDrawings.DrawPlayer(&player);
         myDrawings.DrawBall(&ball);
 
