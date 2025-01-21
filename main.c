@@ -41,17 +41,17 @@ typedef struct {
 } CollisionData;
 
 void DrawTutorial(void);
-void DrawWindow(BlockData *blocks);
+void DrawWindow(BlockData *blocks, int blockSize);
 void DrawPlayer(Player *player);
 void DrawBall(Ball *ball);
-void DrawBlocks(BlockData *blocks);
+void DrawBlocks(BlockData *blocks, int blockSize);
 
 typedef struct {
     void (*DrawTutorial)(void);
-    void (*DrawWindow)(BlockData *blocks);
+    void (*DrawWindow)(BlockData *blocks, int blockSize);
     void (*DrawPlayer)(Player *player);
     void (*DrawBall)(Ball *ball);
-    void (*DrawBlocks)(BlockData *blocks);
+    void (*DrawBlocks)(BlockData *blocks, int blockSize);
 } Drawings;
 
 Player InitializePlayer(Vector2 position, float speed) {
@@ -90,10 +90,10 @@ void DrawTutorial() {
     DrawText("- SPACE to yeet ball", 40, 60, 10, DARKGRAY);
 }
 
-void DrawWindow(BlockData *blocks) {
+void DrawWindow(BlockData *blocks, int blockSize) {
     for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
-        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
-            BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
+        for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
+            BlockData *block = &blocks[i * (WINDOW_WIDTH / blockSize) + j];
             if (block->isActive) {
                 Color blockColor = BLACK;
                 switch (block->type) {
@@ -109,16 +109,16 @@ void DrawWindow(BlockData *blocks) {
                     default:
                         blockColor = BLACK;
                 }
-                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, blockColor);
+                DrawRectangle(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, blockColor);
             }
         }
     }
 }
 
-void DrawBlocks(BlockData *blocks) {
+void DrawBlocks(BlockData *blocks, int blockSize) {
     for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
-            BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
+        for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
+            BlockData *block = &blocks[i * (WINDOW_WIDTH / blockSize) + j];
             if (block->isActive) {
                 Color blockColor = BLACK;
                 switch (block->type) {
@@ -134,7 +134,7 @@ void DrawBlocks(BlockData *blocks) {
                     default:
                         blockColor = BLACK;
                 }
-                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, blockColor);
+                DrawRectangle(j * blockSize, i * TILE_HEIGHT, blockSize, TILE_HEIGHT, blockColor);
             }
         }
     }
@@ -162,7 +162,7 @@ void UpdatePlayer(Player *player, float deltaTime, CollisionData *collisionData)
     }
 }
 
-void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, CollisionData *collisionData) {
+void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, CollisionData *collisionData, int blockSize) {
     if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
         ball->isActive = true;
         ball->velocity.x = 200.0f;
@@ -174,10 +174,10 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
         ball->position = Vector2Add(ball->position, Vector2Scale(ball->velocity, deltaTime));
 
         int row = (int)(ball->position.y / TILE_HEIGHT);
-        int col = (int)(ball->position.x / TILE_WIDTH);
+        int col = (int)(ball->position.x / blockSize);
 
-        if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / TILE_WIDTH)) {
-            BlockData *block = &blocks[row * (WINDOW_WIDTH / TILE_WIDTH) + col];
+        if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / blockSize)) {
+            BlockData *block = &blocks[row * (WINDOW_WIDTH / blockSize) + col];
             if (block->isActive) {
                 block->isActive = false;
                 ball->velocity.y = -ball->velocity.y;
@@ -209,22 +209,23 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
         }
     } else {
         ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
-        ball->position.y = player->position.y + TILE_HEIGHT;
+        ball->position.y = player->position.y - ball->radius - 5;
     }
 }
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
 
-    BlockData blocks[WINDOW_HEIGHT / TILE_HEIGHT][WINDOW_WIDTH / TILE_WIDTH];
+    int blockSize = TILE_WIDTH * 2;
+    BlockData blocks[WINDOW_HEIGHT / TILE_HEIGHT][WINDOW_WIDTH / blockSize];
 
     for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
-        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+        for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
             blocks[i][j].isActive = false;
         }
     }
 
-    for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+    for (int j = 0; j < (WINDOW_WIDTH / blockSize); j++) {
         blocks[0][j].isActive = true;
         blocks[0][j].type = WHITE_BLOCK;
 
@@ -237,7 +238,7 @@ int main(void) {
 
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitializePlayer(playerPosition, 300.0f);
-    Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y + TILE_HEIGHT, 16.0f, 200.0f);
+    Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y - 16.0f - 5, 16.0f, 200.0f);
 
     Drawings myDrawings;
     myDrawings.DrawTutorial = DrawTutorial;
@@ -252,13 +253,13 @@ int main(void) {
         float deltaTime = GetFrameTime();
 
         UpdatePlayer(&player, deltaTime, &collisionData);
-        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, &collisionData);
+        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, &collisionData, blockSize);
 
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        myDrawings.DrawWindow((BlockData *)blocks);
-        myDrawings.DrawBlocks((BlockData *)blocks);
+        myDrawings.DrawWindow((BlockData *)blocks, blockSize);
+        myDrawings.DrawBlocks((BlockData *)blocks, blockSize);
         myDrawings.DrawTutorial();
         myDrawings.DrawPlayer(&player);
         myDrawings.DrawBall(&ball);
