@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "raylib.h"
+#include "raymath.h"
 
 #define WINDOW_HEIGHT 720
 #define WINDOW_WIDTH 1280
 #define TILE_WIDTH 32
 #define TILE_HEIGHT 32
-int32_t map[WINDOW_HEIGHT][WINDOW_WIDTH];
 
 typedef struct {
     bool isActive;
@@ -29,15 +29,17 @@ typedef struct {
 } Ball;
 
 void DrawTutorial(void);
-void DrawWindow(int32_t *map);
+void DrawWindow(BlockData *blocks);
 void DrawPlayer(Player *player);
 void DrawBall(Ball *ball);
+void DrawBlocks(BlockData *blocks);
 
 typedef struct {
     void (*DrawTutorial)(void);
-    void (*DrawWindow)(int32_t *map);
+    void (*DrawWindow)(BlockData *blocks);
     void (*DrawPlayer)(Player *player);
     void (*DrawBall)(Ball *ball);
+    void (*DrawBlocks)(BlockData *blocks);
 } Drawings;
 
 Player InitializePlayer(Vector2 position, float speed) {
@@ -45,6 +47,7 @@ Player InitializePlayer(Vector2 position, float speed) {
     player.position = position;
     player.playerSpeed = speed;
     player.velocity = (Vector2){0, 0};
+    player.lives = 3;
     return player;
 }
 
@@ -54,7 +57,7 @@ Ball InitializeBall(float x, float y, float radius, float speed) {
     ball.position.y = y;
     ball.radius = radius;
     ball.speed = speed;
-    ball.velocity = (Vector2){speed, speed};
+    ball.velocity = (Vector2){speed, -speed};
     ball.isActive = false;
     return ball;
 }
@@ -72,13 +75,26 @@ void DrawTutorial() {
     DrawRectangleLines(10, 10, 250, 113, BLUE);
     DrawText("Controls:", 20, 20, 10, BLACK);
     DrawText("- A/D to move", 40, 40, 10, DARKGRAY);
+    DrawText("- SPACE to yeet ball", 40, 60, 10, DARKGRAY);
 }
 
-void DrawWindow(int32_t *map) {
-    for (int i = 0; i < WINDOW_HEIGHT; i++) {
-        for (int j = 0; j < WINDOW_WIDTH; j++) {
-            if (*(map + i * WINDOW_WIDTH + j) == 1) {
+void DrawWindow(BlockData *blocks) {
+    for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
+        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+            BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
+            if (block->isActive) {
                 DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, WHITE);
+            }
+        }
+    }
+}
+
+void DrawBlocks(BlockData *blocks) {
+    for (int i = 0; i < 2; i++) {  // Only draw the top two rows
+        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+            BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
+            if (block->isActive) {
+                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, BLUE);
             }
         }
     }
@@ -93,11 +109,10 @@ void UpdatePlayer(Player *player, float deltaTime) {
         player->velocity.x = 0;
     }
 
-    player->position.x += player->velocity.x * deltaTime;
-    player->position.y += player->velocity.y * deltaTime;
+    player->position = Vector2Add(player->position, Vector2Scale(player->velocity, deltaTime));
 }
 
-void UpdateBall(Ball *ball, Player *player, float deltaTime) {
+void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime) {
     if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
         ball->isActive = true;
         ball->velocity.x = 200.0f;
@@ -105,8 +120,18 @@ void UpdateBall(Ball *ball, Player *player, float deltaTime) {
     }
 
     if (ball->isActive) {
-        ball->position.x += ball->velocity.x * deltaTime;
-        ball->position.y += ball->velocity.y * deltaTime;
+        ball->position = Vector2Add(ball->position, Vector2Scale(ball->velocity, deltaTime));
+
+        int row = (int)(ball->position.y / TILE_HEIGHT);
+        int col = (int)(ball->position.x / TILE_WIDTH);
+
+        if (row >= 0 && row < (WINDOW_HEIGHT / TILE_HEIGHT) && col >= 0 && col < (WINDOW_WIDTH / TILE_WIDTH)) {
+            BlockData *block = &blocks[row * (WINDOW_WIDTH / TILE_WIDTH) + col];
+            if (block->isActive) {
+                block->isActive = false;
+                ball->velocity.y = -ball->velocity.y;
+            }
+        }
     } else {
         ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
         ball->position.y = player->position.y + TILE_HEIGHT;
@@ -116,13 +141,19 @@ void UpdateBall(Ball *ball, Player *player, float deltaTime) {
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
 
-    for (int i = 0; i < WINDOW_HEIGHT; i++) {
-        for (int j = 0; j < WINDOW_WIDTH; j++) {
-            if ((i * WINDOW_WIDTH + j) % 2 == 0) {
-                map[i][j] = 1;
-            }
+    BlockData blocks[WINDOW_HEIGHT / TILE_HEIGHT][WINDOW_WIDTH / TILE_WIDTH];
+
+    for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
+        for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+            blocks[i][j].isActive = false;  // Set blocks inactive by default
         }
     }
+
+    for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
+        blocks[0][j].isActive = true;  // Top row
+        blocks[1][j].isActive = true;  // Second row
+    }
+
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitializePlayer(playerPosition, 300.0f);
     Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y + TILE_HEIGHT, 16.0f, 200.0f);
@@ -132,17 +163,19 @@ int main(void) {
     myDrawings.DrawWindow = DrawWindow;
     myDrawings.DrawPlayer = DrawPlayer;
     myDrawings.DrawBall = DrawBall;
+    myDrawings.DrawBlocks = DrawBlocks;
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
 
         UpdatePlayer(&player, deltaTime);
-        UpdateBall(&ball, &player, deltaTime);
+        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime);
 
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        myDrawings.DrawWindow((int32_t *)map);
+        myDrawings.DrawWindow((BlockData *)blocks);
+        myDrawings.DrawBlocks((BlockData *)blocks);
         myDrawings.DrawTutorial();
         myDrawings.DrawPlayer(&player);
         myDrawings.DrawBall(&ball);
