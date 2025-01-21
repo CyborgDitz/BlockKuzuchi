@@ -28,6 +28,10 @@ typedef struct {
     bool isActive;
 } Ball;
 
+typedef struct {
+    bool collisionOccurred;
+} CollisionData;
+
 void DrawTutorial(void);
 void DrawWindow(BlockData *blocks);
 void DrawPlayer(Player *player);
@@ -90,7 +94,7 @@ void DrawWindow(BlockData *blocks) {
 }
 
 void DrawBlocks(BlockData *blocks) {
-    for (int i = 0; i < 2; i++) {  // Only draw the top two rows
+    for (int i = 0; i < 2; i++) {
         for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
             BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
             if (block->isActive) {
@@ -100,7 +104,7 @@ void DrawBlocks(BlockData *blocks) {
     }
 }
 
-void UpdatePlayer(Player *player, float deltaTime) {
+void UpdatePlayer(Player *player, float deltaTime, CollisionData *collisionData) {
     if (IsKeyDown(KEY_A)) {
         player->velocity.x = -player->playerSpeed;
     } else if (IsKeyDown(KEY_D)) {
@@ -110,13 +114,24 @@ void UpdatePlayer(Player *player, float deltaTime) {
     }
 
     player->position = Vector2Add(player->position, Vector2Scale(player->velocity, deltaTime));
+
+    if (player->position.x < 0) {
+        player->position.x = 0;
+        collisionData->collisionOccurred = true;
+    }
+
+    if (player->position.x + TILE_WIDTH * 5 > WINDOW_WIDTH) {
+        player->position.x = WINDOW_WIDTH - TILE_WIDTH * 5;
+        collisionData->collisionOccurred = true;
+    }
 }
 
-void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime) {
+void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, CollisionData *collisionData) {
     if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
         ball->isActive = true;
         ball->velocity.x = 200.0f;
         ball->velocity.y = -200.0f;
+        collisionData->collisionOccurred = false;
     }
 
     if (ball->isActive) {
@@ -130,7 +145,32 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime) 
             if (block->isActive) {
                 block->isActive = false;
                 ball->velocity.y = -ball->velocity.y;
+                collisionData->collisionOccurred = true;
             }
+        }
+
+        if (ball->position.x - ball->radius < 0 || ball->position.x + ball->radius > WINDOW_WIDTH) {
+            ball->velocity.x = -ball->velocity.x;
+            collisionData->collisionOccurred = true;
+        }
+
+        if (ball->position.y - ball->radius < 0) {
+            ball->velocity.y = -ball->velocity.y;
+            collisionData->collisionOccurred = true;
+        }
+
+
+        if (ball->position.y + ball->radius >= player->position.y &&
+            ball->position.y - ball->radius <= player->position.y + TILE_HEIGHT &&
+            ball->position.x >= player->position.x && ball->position.x <= player->position.x + TILE_WIDTH * 5) {
+            ball->velocity.y = -ball->velocity.y;
+            collisionData->collisionOccurred = true;
+        }
+
+        if (ball->position.y + ball->radius > WINDOW_HEIGHT) {
+            ball->velocity.y = -ball->velocity.y;
+            ball->position.y = WINDOW_HEIGHT - ball->radius;
+            collisionData->collisionOccurred = true;
         }
     } else {
         ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
@@ -145,13 +185,13 @@ int main(void) {
 
     for (int i = 0; i < (WINDOW_HEIGHT / TILE_HEIGHT); i++) {
         for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
-            blocks[i][j].isActive = false;  // Set blocks inactive by default
+            blocks[i][j].isActive = false;
         }
     }
 
     for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
-        blocks[0][j].isActive = true;  // Top row
-        blocks[1][j].isActive = true;  // Second row
+        blocks[0][j].isActive = true;
+        blocks[1][j].isActive = true;
     }
 
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
@@ -165,11 +205,13 @@ int main(void) {
     myDrawings.DrawBall = DrawBall;
     myDrawings.DrawBlocks = DrawBlocks;
 
+    CollisionData collisionData = {false};
+
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
 
-        UpdatePlayer(&player, deltaTime);
-        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime);
+        UpdatePlayer(&player, deltaTime, &collisionData);
+        UpdateBall(&ball, &player, (BlockData *)blocks, deltaTime, &collisionData);
 
         BeginDrawing();
         ClearBackground(YELLOW);
