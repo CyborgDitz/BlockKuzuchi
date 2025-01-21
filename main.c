@@ -68,10 +68,11 @@ void DrawBall(Ball *ball) {
 }
 
 void DrawTutorial() {
-    DrawRectangle(10, 10, 250, 113, Fade(SKYBLUE, 0.5f));
-    DrawRectangleLines(10, 10, 250, 113, BLUE);
+    DrawRectangle(10, 10, 250, 133, Fade(SKYBLUE, 0.5f));
+    DrawRectangleLines(10, 10, 250, 133, BLUE);
     DrawText("Controls:", 20, 20, 10, BLACK);
     DrawText("- A/D to move", 40, 40, 10, DARKGRAY);
+    DrawText("- SPACE to activate ball", 40, 60, 10, DARKGRAY);
 }
 
 void DrawWindow(int32_t *map) {
@@ -131,6 +132,13 @@ int main(void) {
         float deltaTime = GetFrameTime();
 
         UpdatePlayer(&player, deltaTime);
+        
+        if (IsKeyPressed(KEY_SPACE) && !ball.isActive) {
+            ball.isActive = true;
+            ball.velocity.x = 200.0f;  // Set ball's velocity after activation
+            ball.velocity.y = -200.0f; // Launch it upwards
+        }
+        
         UpdateBall(&ball, &player, deltaTime);
 
         BeginDrawing();
