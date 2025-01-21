@@ -8,8 +8,16 @@
 #define TILE_WIDTH 32
 #define TILE_HEIGHT 32
 
+typedef enum {
+    WHITE_BLOCK,
+    BLACK_BLOCK,
+    BLUE_BLOCK,
+    NUM_BLOCK_TYPES
+} BlockType;
+
 typedef struct {
     bool isActive;
+    BlockType type;
 } BlockData;
 
 typedef struct {
@@ -87,18 +95,46 @@ void DrawWindow(BlockData *blocks) {
         for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
             BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
             if (block->isActive) {
-                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, WHITE);
+                Color blockColor = BLACK;
+                switch (block->type) {
+                    case WHITE_BLOCK:
+                        blockColor = WHITE;
+                        break;
+                    case BLACK_BLOCK:
+                        blockColor = BLACK;
+                        break;
+                    case BLUE_BLOCK:
+                        blockColor = BLUE;
+                        break;
+                    default:
+                        blockColor = BLACK;
+                }
+                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, blockColor);
             }
         }
     }
 }
 
 void DrawBlocks(BlockData *blocks) {
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
             BlockData *block = &blocks[i * (WINDOW_WIDTH / TILE_WIDTH) + j];
             if (block->isActive) {
-                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, BLUE);
+                Color blockColor = BLACK;
+                switch (block->type) {
+                    case WHITE_BLOCK:
+                        blockColor = WHITE;
+                        break;
+                    case BLACK_BLOCK:
+                        blockColor = BLACK;
+                        break;
+                    case BLUE_BLOCK:
+                        blockColor = BLUE;
+                        break;
+                    default:
+                        blockColor = BLACK;
+                }
+                DrawRectangle(j * TILE_WIDTH, i * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, blockColor);
             }
         }
     }
@@ -159,7 +195,6 @@ void UpdateBall(Ball *ball, Player *player, BlockData *blocks, float deltaTime, 
             collisionData->collisionOccurred = true;
         }
 
-
         if (ball->position.y + ball->radius >= player->position.y &&
             ball->position.y - ball->radius <= player->position.y + TILE_HEIGHT &&
             ball->position.x >= player->position.x && ball->position.x <= player->position.x + TILE_WIDTH * 5) {
@@ -191,7 +226,13 @@ int main(void) {
 
     for (int j = 0; j < (WINDOW_WIDTH / TILE_WIDTH); j++) {
         blocks[0][j].isActive = true;
+        blocks[0][j].type = WHITE_BLOCK;
+
         blocks[1][j].isActive = true;
+        blocks[1][j].type = BLACK_BLOCK;
+
+        blocks[2][j].isActive = true;
+        blocks[2][j].type = BLUE_BLOCK;
     }
 
     Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
