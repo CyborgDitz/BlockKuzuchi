@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include "raylib.h"
 
-#define WINDOW_HEIGHT 1024
-#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 720
+#define WINDOW_WIDTH 1280
 #define TILE_WIDTH 32
 #define TILE_HEIGHT 32
 int32_t map[WINDOW_HEIGHT][WINDOW_WIDTH];
@@ -55,7 +55,7 @@ Ball InitializeBall(float x, float y, float radius, float speed) {
     ball.radius = radius;
     ball.speed = speed;
     ball.velocity = (Vector2){speed, speed};
-    ball.isActive = false;  // Ball starts inactive
+    ball.isActive = false;
     return ball;
 }
 
@@ -68,11 +68,10 @@ void DrawBall(Ball *ball) {
 }
 
 void DrawTutorial() {
-    DrawRectangle(10, 10, 250, 133, Fade(SKYBLUE, 0.5f));
-    DrawRectangleLines(10, 10, 250, 133, BLUE);
+    DrawRectangle(10, 10, 250, 113, Fade(SKYBLUE, 0.5f));
+    DrawRectangleLines(10, 10, 250, 113, BLUE);
     DrawText("Controls:", 20, 20, 10, BLACK);
     DrawText("- A/D to move", 40, 40, 10, DARKGRAY);
-    DrawText("- SPACE to activate ball", 40, 60, 10, DARKGRAY);
 }
 
 void DrawWindow(int32_t *map) {
@@ -99,6 +98,12 @@ void UpdatePlayer(Player *player, float deltaTime) {
 }
 
 void UpdateBall(Ball *ball, Player *player, float deltaTime) {
+    if (!ball->isActive && IsKeyPressed(KEY_SPACE)) {
+        ball->isActive = true;
+        ball->velocity.x = 200.0f;
+        ball->velocity.y = -200.0f;
+    }
+
     if (ball->isActive) {
         ball->position.x += ball->velocity.x * deltaTime;
         ball->position.y += ball->velocity.y * deltaTime;
@@ -109,7 +114,7 @@ void UpdateBall(Ball *ball, Player *player, float deltaTime) {
 }
 
 int main(void) {
-    InitWindow(800, 600, "BlockKuzuchi");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
 
     for (int i = 0; i < WINDOW_HEIGHT; i++) {
         for (int j = 0; j < WINDOW_WIDTH; j++) {
@@ -118,7 +123,7 @@ int main(void) {
             }
         }
     }
-    Vector2 playerPosition = {100, 100};
+    Vector2 playerPosition = {100, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitializePlayer(playerPosition, 300.0f);
     Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y + TILE_HEIGHT, 16.0f, 200.0f);
 
@@ -132,13 +137,6 @@ int main(void) {
         float deltaTime = GetFrameTime();
 
         UpdatePlayer(&player, deltaTime);
-        
-        if (IsKeyPressed(KEY_SPACE) && !ball.isActive) {
-            ball.isActive = true;
-            ball.velocity.x = 200.0f;  // Set ball's velocity after activation
-            ball.velocity.y = -200.0f; // Launch it upwards
-        }
-        
         UpdateBall(&ball, &player, deltaTime);
 
         BeginDrawing();
