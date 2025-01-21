@@ -97,15 +97,17 @@ void UpdatePlayer(Player *player, float deltaTime) {
     player->position.y += player->velocity.y * deltaTime;
 }
 
-void UpdateBall(Ball *ball, float deltaTime) {
+void UpdateBall(Ball *ball, Player *player, float deltaTime) {
     if (ball->isActive) {
         ball->position.x += ball->velocity.x * deltaTime;
         ball->position.y += ball->velocity.y * deltaTime;
+    } else {
+        ball->position.x = player->position.x + (TILE_WIDTH * 5) / 2;
+        ball->position.y = player->position.y + TILE_HEIGHT;
     }
 }
 
-int main(void)
-{
+int main(void) {
     InitWindow(800, 600, "BlockKuzuchi");
 
     for (int i = 0; i < WINDOW_HEIGHT; i++) {
@@ -119,9 +121,6 @@ int main(void)
     Player player = InitializePlayer(playerPosition, 300.0f);
     Ball ball = InitializeBall(player.position.x + (TILE_WIDTH * 5) / 2, player.position.y + TILE_HEIGHT, 16.0f, 200.0f);
 
-
-
-
     Drawings myDrawings;
     myDrawings.DrawTutorial = DrawTutorial;
     myDrawings.DrawWindow = DrawWindow;
@@ -132,7 +131,7 @@ int main(void)
         float deltaTime = GetFrameTime();
 
         UpdatePlayer(&player, deltaTime);
-        UpdateBall(&ball, deltaTime);
+        UpdateBall(&ball, &player, deltaTime);
 
         BeginDrawing();
         ClearBackground(YELLOW);
