@@ -191,6 +191,19 @@ void DrawGameOver() {
     DrawText("GAME OVER", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, RED);
     DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, RED);
 }
+void DrawWinScreen() {
+    DrawText("YOU WIN!", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, PINK);
+    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, PINK);
+}
+
+bool CheckWinCondition(Block *blocks, int rows, int cols) {
+    for (int i = 0; i < rows * cols; i++) {
+        if (blocks[i].isActive) {
+            return false;
+        }
+    }
+    return true;
+}
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
@@ -213,6 +226,7 @@ int main(void) {
 
     bool gameStarted = false;
     bool gameOver = false;
+    bool gameWon = false;
 
     while (!WindowShouldClose() && !gameStarted) {
         BeginDrawing();
@@ -250,12 +264,40 @@ int main(void) {
             continue;
         }
 
+        if (gameWon) {
+            BeginDrawing();
+            ClearBackground(YELLOW);
+            DrawWinScreen();
+
+            if (IsKeyPressed(KEY_ENTER)) {
+                player = InitPlayer(playerPosition);
+                ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
+                gameWon = false;
+
+                for (int i = 0; i < rows; i++) {
+                    for (int j = 0; j < cols; j++) {
+                        blocks[i * cols + j].isActive = i < 3;
+                        blocks[i * cols + j].type = i % 3;
+                    }
+                }
+            }
+
+            EndDrawing();
+            continue;
+        }
+
         float dt = GetFrameTime();
         UpdatePlayer(&player, dt);
         UpdateBall(&ball, &player, blocks, rows, cols, dt);
 
         if (IsKeyPressed(KEY_F) && IsKeyDown(KEY_LEFT_SHIFT)) {
             gameOver = true;
+        }
+        if (IsKeyPressed(KEY_P) && IsKeyDown(KEY_LEFT_SHIFT)) {
+            gameWon = true;
+        }
+        if (CheckWinCondition(blocks, rows, cols)) {
+            gameWon = true;
         }
 
         BeginDrawing();
