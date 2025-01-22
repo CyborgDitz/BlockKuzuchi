@@ -3,13 +3,20 @@
 #include "raylib.h"
 #include "raymath.h"
 
-#define WINDOW_HEIGHT 720
-#define WINDOW_WIDTH 720
+const int WINDOW_HEIGHT = 720;
+const int WINDOW_WIDTH = 720;
+
 #define TILE_WIDTH 30
 #define TILE_HEIGHT 30
 #define BLOCK_SIZE (TILE_WIDTH * 2)
 #define BALL_SPEED 600.0f
 #define PLAYER_SPEED 600.0f
+#define MAX_LIVES 3
+#define MAX_BLOCKS 100
+
+typedef enum { BLOCK_TYPE_WHITE, BLOCK_TYPE_BLACK, BLOCK_TYPE_BLUE } BlockType;
+typedef enum { GAME_START, GAME_PLAYING, GAME_OVER, GAME_WIN } GameState;
+typedef enum { PLAYER_NORMAL, PLAYER_DEAD } PlayerState;
 
 typedef struct {
     Vector2 position;
@@ -28,12 +35,22 @@ typedef struct {
     float width;
     float height;
     int lives;
+    PlayerState state;
 } Player;
 
 typedef struct {
     bool isActive;
-    int type;
+    BlockType type;
 } Block;
+
+typedef struct {
+    Ball ball;
+    Player player;
+    Block blocks[MAX_BLOCKS];
+    int rows;
+    int cols;
+    GameState state;
+} Game;
 
 Player InitPlayer(Vector2 position) {
     Player player = {0};
@@ -41,7 +58,8 @@ Player InitPlayer(Vector2 position) {
     player.base.velocity = (Vector2){0, 0};
     player.width = TILE_WIDTH * 5;
     player.height = TILE_HEIGHT;
-    player.lives = 3;
+    player.lives = MAX_LIVES;
+    player.state = PLAYER_NORMAL;
     return player;
 }
 
@@ -74,7 +92,7 @@ void DrawBlocks(Block *blocks, int rows, int cols) {
         for (int j = 0; j < cols; j++) {
             Block *block = &blocks[i * cols + j];
             if (block->isActive) {
-                Color blockColor = (block->type == 0) ? WHITE : (block->type == 1) ? BLACK : BLUE;
+                Color blockColor = (block->type == BLOCK_TYPE_WHITE) ? WHITE : (block->type == BLOCK_TYPE_BLACK) ? BLACK : BLUE;
                 DrawRectangle(j * BLOCK_SIZE, i * TILE_HEIGHT, BLOCK_SIZE, TILE_HEIGHT, blockColor);
                 DrawRectangleLines(j * BLOCK_SIZE, i * TILE_HEIGHT, BLOCK_SIZE, TILE_HEIGHT, PURPLE);
             }
@@ -115,12 +133,15 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->isActive = false;
         player->lives--;
+        player->state = PLAYER_DEAD;
         return true;
     }
     return false;
 }
 
 void UpdatePlayer(Player *player, float dt) {
+    if (player->state == PLAYER_DEAD) return;
+
     if (IsKeyDown(KEY_A)) {
         player->base.velocity.x = -PLAYER_SPEED;
     } else if (IsKeyDown(KEY_D)) {
@@ -156,7 +177,7 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, f
 void DrawLifebar(Player *player) {
     const float lifebarWidth = 200.0f;
     const float lifebarHeight = 20.0f;
-    float lifebarProgress = (float)player->lives / 3.0f;
+    float lifebarProgress = (float)player->lives / MAX_LIVES;
 
     float lifebarX = (WINDOW_WIDTH - lifebarWidth) / 2;
     float lifebarY = WINDOW_HEIGHT - lifebarHeight - 5;
@@ -165,6 +186,7 @@ void DrawLifebar(Player *player) {
 
     DrawRectangle(lifebarX, lifebarY, lifebarWidth * lifebarProgress, lifebarHeight, GREEN);
 }
+
 void DrawStartScreen() {
     const char *title = "Block Kuzuchi!";
     const char *instruction = "Press ENTER to Start";
@@ -191,6 +213,7 @@ void DrawGameOver() {
     DrawText("GAME OVER", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, RED);
     DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, RED);
 }
+
 void DrawWinScreen() {
     DrawText("YOU WIN!", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, PINK);
     DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, PINK);
@@ -206,7 +229,7 @@ bool CheckWinCondition(Block *blocks, int rows, int cols) {
 }
 
 int main(void) {
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Block Kuzuchi");
 
     int rows = WINDOW_HEIGHT / TILE_HEIGHT;
     int cols = WINDOW_WIDTH / BLOCK_SIZE;
@@ -224,89 +247,73 @@ int main(void) {
 
     Ball ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
 
-    bool gameStarted = false;
-    bool gameOver = false;
-    bool gameWon = false;
-
-    while (!WindowShouldClose() && !gameStarted) {
-        BeginDrawing();
-        ClearBackground(LIGHTGRAY);
-
-        DrawStartScreen();
-
-        if (IsKeyPressed(KEY_ENTER)) {
-            gameStarted = true;
-        }
-
-        EndDrawing();
-    }
+    Game game = {ball, player, blocks, rows, cols, GAME_START};
 
     while (!WindowShouldClose()) {
-        if (gameOver) {
-            BeginDrawing();
-            ClearBackground(YELLOW);
-            DrawGameOver();
-
-            if (IsKeyPressed(KEY_ENTER)) {
-                player = InitPlayer(playerPosition);
-                ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
-                gameOver = false;
-
-                for (int i = 0; i < rows; i++) {
-                    for (int j = 0; j < cols; j++) {
-                        blocks[i * cols + j].isActive = i < 3;
-                        blocks[i * cols + j].type = i % 3;
-                    }
-                }
-            }
-
-            EndDrawing();
-            continue;
-        }
-
-        if (gameWon) {
-            BeginDrawing();
-            ClearBackground(YELLOW);
-            DrawWinScreen();
-
-            if (IsKeyPressed(KEY_ENTER)) {
-                player = InitPlayer(playerPosition);
-                ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
-                gameWon = false;
-
-                for (int i = 0; i < rows; i++) {
-                    for (int j = 0; j < cols; j++) {
-                        blocks[i * cols + j].isActive = i < 3;
-                        blocks[i * cols + j].type = i % 3;
-                    }
-                }
-            }
-
-            EndDrawing();
-            continue;
-        }
-
-        float dt = GetFrameTime();
-        UpdatePlayer(&player, dt);
-        UpdateBall(&ball, &player, blocks, rows, cols, dt);
-
-        if (IsKeyPressed(KEY_F) && IsKeyDown(KEY_LEFT_SHIFT)) {
-            gameOver = true;
-        }
-        if (IsKeyPressed(KEY_P) && IsKeyDown(KEY_LEFT_SHIFT)) {
-            gameWon = true;
-        }
-        if (CheckWinCondition(blocks, rows, cols)) {
-            gameWon = true;
-        }
-
         BeginDrawing();
         ClearBackground(YELLOW);
 
-        DrawBlocks(blocks, rows, cols);
-        DrawPlayer(&player);
-        DrawBall(&ball);
-        DrawLifebar(&player);
+        switch (game.state) {
+            case GAME_START:
+                DrawStartScreen();
+                if (IsKeyPressed(KEY_ENTER)) {
+                    game.state = GAME_PLAYING;
+                }
+                break;
+            case GAME_OVER:
+                DrawGameOver();
+                if (IsKeyPressed(KEY_ENTER)) {
+                    player = InitPlayer(playerPosition);
+                    ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
+                    game.state = GAME_START;
+
+                    for (int i = 0; i < rows; i++) {
+                        for (int j = 0; j < cols; j++) {
+                            blocks[i * cols + j].isActive = i < 3;
+                            blocks[i * cols + j].type = i % 3;
+                        }
+                    }
+                }
+
+                // Test key for Game Over
+                if (IsKeyPressed(KEY_F1)) {
+                    game.state = GAME_OVER;
+                }
+                break;
+            case GAME_WIN:
+                DrawWinScreen();
+                if (IsKeyPressed(KEY_ENTER)) {
+                    player = InitPlayer(playerPosition);
+                    ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
+                    game.state = GAME_START;
+
+                    for (int i = 0; i < rows; i++) {
+                        for (int j = 0; j < cols; j++) {
+                            blocks[i * cols + j].isActive = i < 3;
+                            blocks[i * cols + j].type = i % 3;
+                        }
+                    }
+                }
+
+                if (IsKeyPressed(KEY_F2)) {
+                    game.state = GAME_WIN;
+                }
+                break;
+            case GAME_PLAYING:
+                float dt = GetFrameTime();
+                UpdatePlayer(&player, dt);
+                UpdateBall(&ball, &player, blocks, rows, cols, dt);
+
+                if (CheckWinCondition(blocks, rows, cols)) {
+                    game.state = GAME_WIN;
+                }
+
+                DrawBlocks(blocks, rows, cols);
+                DrawPlayer(&player);
+                DrawBall(&ball);
+                DrawLifebar(&player);
+                break;
+        }
 
         EndDrawing();
     }
