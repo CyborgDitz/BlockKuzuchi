@@ -8,8 +8,8 @@
 #define TILE_WIDTH 30
 #define TILE_HEIGHT 30
 #define BLOCK_SIZE (TILE_WIDTH * 2)
-#define BALL_SPEED 320.0f
-#define PLAYER_SPEED 300.0f
+#define BALL_SPEED 600.0f
+#define PLAYER_SPEED 600.0f
 
 typedef struct {
     Vector2 position;
@@ -60,8 +60,12 @@ void DrawPlayer(Player *player) {
 }
 
 void DrawBall(Ball *ball) {
-    if (ball->isActive) {
-        DrawCircleV(ball->base.position, ball->radius, BLACK);
+    DrawCircleV(ball->base.position, ball->radius, BLACK);
+    if (!ball->isActive) {
+        Vector2 mousePosition = GetMousePosition();
+        Vector2 direction = Vector2Normalize(Vector2Subtract(mousePosition, ball->base.position));
+        Vector2 aimLineEnd = Vector2Add(ball->base.position, Vector2Scale(direction, 40.0f));
+        DrawLineV(ball->base.position, aimLineEnd, RED);
     }
 }
 
@@ -85,7 +89,7 @@ Vector2 ReflectBall(Ball *ball, Player *player) {
 }
 
 bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int cols) {
-
+    // Check ball collision with walls
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
         ball->base.velocity.x = -ball->base.velocity.x;
     }
@@ -93,12 +97,14 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
         ball->base.velocity.y = -ball->base.velocity.y;
     }
 
+    // Check collision with player paddle
     Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
     Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
     if (CheckCollisionRecs(playerRect, ballRect)) {
         ball->base.velocity = ReflectBall(ball, player);
     }
 
+    // Check block collision
     int col = ball->base.position.x / BLOCK_SIZE;
     int row = ball->base.position.y / TILE_HEIGHT;
     if (row >= 0 && row < rows && col >= 0 && col < cols) {
@@ -109,6 +115,7 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
         }
     }
 
+    // Check if ball falls out of the window
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->isActive = false;
         player->lives--;
