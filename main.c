@@ -89,7 +89,6 @@ Vector2 ReflectBall(Ball *ball, Player *player) {
 }
 
 bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int cols) {
-    // Check ball collision with walls
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
         ball->base.velocity.x = -ball->base.velocity.x;
     }
@@ -97,14 +96,12 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
         ball->base.velocity.y = -ball->base.velocity.y;
     }
 
-    // Check collision with player paddle
     Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
     Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
     if (CheckCollisionRecs(playerRect, ballRect)) {
         ball->base.velocity = ReflectBall(ball, player);
     }
 
-    // Check block collision
     int col = ball->base.position.x / BLOCK_SIZE;
     int row = ball->base.position.y / TILE_HEIGHT;
     if (row >= 0 && row < rows && col >= 0 && col < cols) {
@@ -115,7 +112,6 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
         }
     }
 
-    // Check if ball falls out of the window
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->isActive = false;
         player->lives--;
@@ -157,8 +153,47 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, f
     }
 }
 
+void DrawLifebar(Player *player) {
+    const float lifebarWidth = 200.0f;
+    const float lifebarHeight = 20.0f;
+    float lifebarProgress = (float)player->lives / 3.0f;
+
+    float lifebarX = (WINDOW_WIDTH - lifebarWidth) / 2;
+    float lifebarY = WINDOW_HEIGHT - lifebarHeight - 5;
+
+    DrawRectangle(lifebarX, lifebarY, lifebarWidth, lifebarHeight, RED);
+
+    DrawRectangle(lifebarX, lifebarY, lifebarWidth * lifebarProgress, lifebarHeight, GREEN);
+}
+void DrawStartScreen() {
+    const char *title = "Block Kuzuchi!";
+    const char *instruction = "Press ENTER to Start";
+
+    int screenWidth = WINDOW_WIDTH;
+    int screenHeight = WINDOW_HEIGHT;
+
+    int titleWidth = MeasureText(title, 40);
+    int instructionWidth = MeasureText(instruction, 30);
+
+    int titleX = (screenWidth - titleWidth) / 2;
+    int titleY = screenHeight / 2 - 40;
+
+    int instructionX = (screenWidth - instructionWidth) / 2;
+    int instructionY = titleY + 50;
+
+    ClearBackground(YELLOW);
+
+    DrawText(title, titleX, titleY, 40, DARKBLUE);
+    DrawText(instruction, instructionX, instructionY, 30, DARKBLUE);
+}
+
+void DrawGameOver() {
+    DrawText("GAME OVER", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, RED);
+    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, RED);
+}
+
 int main(void) {
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Block Breaker");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
 
     int rows = WINDOW_HEIGHT / TILE_HEIGHT;
     int cols = WINDOW_WIDTH / BLOCK_SIZE;
@@ -176,17 +211,61 @@ int main(void) {
 
     Ball ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
 
-    while (!WindowShouldClose()) {
-        float dt = GetFrameTime();
+    bool gameStarted = false;
+    bool gameOver = false;
 
+    while (!WindowShouldClose() && !gameStarted) {
+        BeginDrawing();
+        ClearBackground(LIGHTGRAY);
+
+        DrawStartScreen();
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            gameStarted = true;
+        }
+
+        EndDrawing();
+    }
+
+    while (!WindowShouldClose()) {
+        if (gameOver) {
+            BeginDrawing();
+            ClearBackground(YELLOW);
+            DrawGameOver();
+
+            if (IsKeyPressed(KEY_ENTER)) {
+                player = InitPlayer(playerPosition);
+                ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
+                gameOver = false;
+
+                for (int i = 0; i < rows; i++) {
+                    for (int j = 0; j < cols; j++) {
+                        blocks[i * cols + j].isActive = i < 3;
+                        blocks[i * cols + j].type = i % 3;
+                    }
+                }
+            }
+
+            EndDrawing();
+            continue;
+        }
+
+        float dt = GetFrameTime();
         UpdatePlayer(&player, dt);
         UpdateBall(&ball, &player, blocks, rows, cols, dt);
 
+        if (IsKeyPressed(KEY_F) && IsKeyDown(KEY_LEFT_SHIFT)) {
+            gameOver = true;
+        }
+
         BeginDrawing();
         ClearBackground(YELLOW);
+
         DrawBlocks(blocks, rows, cols);
         DrawPlayer(&player);
         DrawBall(&ball);
+        DrawLifebar(&player);
+
         EndDrawing();
     }
 
