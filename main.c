@@ -128,8 +128,8 @@ void UpdatePlayer(Player *player, float dt) {
     } else {
         player->base.velocity.x = 0;
     }
-    player->base.position = Vector2Add(player->base.position, Vector2Scale(player->base.velocity, dt));
 
+    player->base.position = Vector2Add(player->base.position, Vector2Scale(player->base.velocity, dt));
     if (player->base.position.x < 0) {
         player->base.position.x = 0;
     }
@@ -137,7 +137,6 @@ void UpdatePlayer(Player *player, float dt) {
         player->base.position.x = WINDOW_WIDTH - player->width;
     }
 }
-
 
 void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, float dt) {
     if (!ball->isActive) {
