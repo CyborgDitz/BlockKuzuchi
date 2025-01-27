@@ -11,8 +11,10 @@
 #define BALL_SPEED 600.0f
 #define PLAYER_SPEED 600.0f
 #define MAX_POWERUPS 10
+#define DROP_CHANCE 0.3f
 bool gameOver = false;
 bool gameWon = false;
+
 typedef struct {
     Vector2 position;
     Vector2 velocity;
@@ -38,10 +40,10 @@ typedef struct {
 } Block;
 
 typedef struct {
-    Vector2 position;
-    bool isActive;
+    Entity base;
     int type;
 } PowerUp;
+
 Player InitPlayer(Vector2 position) {
     Player player = {0};
     player.base.position = position;
@@ -53,7 +55,6 @@ Player InitPlayer(Vector2 position) {
     return player;
 }
 
-
 Ball InitBall(Vector2 position) {
     Ball ball = {0};
     ball.base.position = position;
@@ -62,6 +63,7 @@ Ball InitBall(Vector2 position) {
     ball.base.isActive = false;
     return ball;
 }
+
 Block InitBlock(Vector2 position, int type) {
     Block block = {0};
     block.base.position = position;
@@ -77,13 +79,14 @@ Vector2 ReflectBall(Ball *ball, Player *player) {
     Vector2 direction = {hitOffset, -1.0f};
     return Vector2Scale(Vector2Normalize(direction), ball->speed);
 }
+
 void DrawPlayer(Player *player) {
     DrawRectangle(player->base.position.x, player->base.position.y, player->width, player->height, PURPLE);
     DrawRectangleLines(player->base.position.x, player->base.position.y, player->width, player->height, DARKPURPLE);
 }
 
 void DrawBall(Ball *ball) {
-    DrawCircleV(ball->base.position, ball->radius, BLACK);
+    DrawCircleV(ball->base.position, ball->radius, PINK);
     if (!ball->base.isActive) {
         Vector2 mousePosition = GetMousePosition();
         Vector2 direction = Vector2Normalize(Vector2Subtract(mousePosition, ball->base.position));
@@ -105,34 +108,64 @@ void DrawBlocks(Block *blocks, int rows, int cols) {
     }
 }
 void DropPowerUp(Block *block, PowerUp *powerUps) {
-    for (int i = 0; i < MAX_POWERUPS; i++) {
-        if (!powerUps[i].isActive) {
-            // Set the position of the power-up based on the destroyed block's position
-            powerUps[i].position = (Vector2){
-                block->base.position.x + BLOCK_SIZE / 2,  // Center it horizontally
-                block->base.position.y + TILE_HEIGHT / 2  // Center it vertically
-            };
+    float dropChance = DROP_CHANCE;
 
-            // Assign a random type to the power-up
-            powerUps[i].type = GetRandomValue(0, 1);
+    if (GetRandomValue(0, 100) < dropChance * 100) {
 
-            // Mark the power-up as active
-            powerUps[i].isActive = true;
-            break;  // Exit the loop after assigning one power-up
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            if (!powerUps[i].base.isActive) {
+                powerUps[i].base.position = (Vector2){
+                    block->base.position.x + BLOCK_SIZE / 2,
+                    block->base.position.y + TILE_HEIGHT / 2
+                };
+
+                powerUps[i].base.velocity = (Vector2){0, 100.0f};
+                powerUps[i].type = GetRandomValue(0, 1);
+                powerUps[i].base.isActive = true;
+                break;
+            }
+        }
+    }
+}
+void UpdatePowerUps(PowerUp *powerUps, int maxPowerUps, float deltaTime) {
+    for (int i = 0; i < maxPowerUps; i++) {
+        if (powerUps[i].base.isActive) {
+            powerUps[i].base.position.y += powerUps[i].base.velocity.y * deltaTime;
+
+            if (powerUps[i].base.position.y > WINDOW_HEIGHT) {
+                powerUps[i].base.isActive = false;
+            }
         }
     }
 }
 
+typedef void (*PowerUpEffect)(Player *player);
+
+void PowerUpExtraLife(Player *player) {
+    player->lives++;
+}
+
+void PowerUpIncreasePaddleWidth(Player *player) {
+    player->width += TILE_WIDTH/2;
+}
+
+PowerUpEffect powerUpEffects[] = {
+    PowerUpExtraLife,
+    PowerUpIncreasePaddleWidth
+};
 
 void HandlePowerUpCollision(PowerUp *powerUp, Player *player) {
-    if (powerUp->isActive && CheckCollisionRecs((Rectangle){player->base.position.x, player->base.position.y, player->width, player->height},
-                                                (Rectangle){powerUp->position.x, powerUp->position.y, 20, 20})) {
-        powerUp->isActive = false;
+    if (powerUp->base.isActive && CheckCollisionRecs((Rectangle){player->base.position.x, player->base.position.y, player->width, player->height},
+                                                (Rectangle){powerUp->base.position.x, powerUp->base.position.y, 20, 20})) {
+        powerUp->base.isActive = false;
         if (powerUp->type == 0) {
-            player->lives++;
+            powerUpEffects[0](player);
+        } else if (powerUp->type == 1) {
+            powerUpEffects[1](player);
         }
     }
 }
+
 void DestroyBlock(Block *block, Ball *ball, PowerUp *powerUps, int rows, int cols) {
     block->base.isActive = false;
     ball->base.velocity.y = -ball->base.velocity.y;
@@ -165,7 +198,7 @@ bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rows, i
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->base.isActive = false;
         player->lives--;
-        if (player->lives >= 0) {
+        if (player->lives <= 0) {
             gameOver = true;
         }
         return true;
@@ -173,7 +206,6 @@ bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rows, i
 
     return false;
 }
-
 
 void UpdatePlayer(Player *player, float dt) {
     if (IsKeyDown(KEY_A)) {
@@ -194,7 +226,7 @@ void UpdatePlayer(Player *player, float dt) {
     }
 }
 
-void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, float dt) {
+void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, PowerUp *powerUps, float dt) {
     if (!ball->base.isActive) {
         ball->base.position.x = player->base.position.x + player->width / 2;
         ball->base.position.y = player->base.position.y - ball->radius - 5;
@@ -211,10 +243,11 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, f
 }
 
 void DrawPowerUp(PowerUp *powerUp) {
-    if (powerUp->isActive) {
-        DrawCircleV(powerUp->position, 10, GREEN);
+    if (powerUp->base.isActive) {
+        DrawCircleV(powerUp->base.position, 10, GREEN);
     }
 }
+
 void DrawLifebar(Player *player) {
     const float lifebarWidth = 200.0f;
     const float lifebarHeight = 20.0f;
@@ -224,43 +257,11 @@ void DrawLifebar(Player *player) {
     float lifebarY = WINDOW_HEIGHT - lifebarHeight - 5;
 
     DrawRectangle(lifebarX, lifebarY, lifebarWidth, lifebarHeight, RED);
-
     DrawRectangle(lifebarX, lifebarY, lifebarWidth * lifebarProgress, lifebarHeight, GREEN);
 }
 
-void DrawStartScreen() {
-    ClearBackground(YELLOW);
-
-    DrawText("Block Kuzuchi!", (WINDOW_WIDTH - MeasureText("Block Kuzuchi!", 40)) / 2, WINDOW_HEIGHT / 2 - 40, 40, DARKBLUE);
-    DrawText("Press ENTER to Start", (WINDOW_WIDTH - MeasureText("Press ENTER to Start", 30)) / 2, WINDOW_HEIGHT / 2 + 10, 30, DARKBLUE);
-}
-
-void DrawPauseScreen() {
-    ClearBackground(YELLOW);
-
-    DrawText("PAUSED", (WINDOW_WIDTH - MeasureText("PAUSED", 40)) / 2, WINDOW_HEIGHT / 2 - 40, 40, DARKBLUE);
-    DrawText("Press ENTER to Start", (WINDOW_WIDTH - MeasureText("Press ENTER to Start", 30)) / 2, WINDOW_HEIGHT / 2 + 10, 30, DARKBLUE);
-}
-void DrawGameOver() {
-    DrawText("GAME OVER", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, RED);
-    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, RED);
-}
-void DrawWinScreen() {
-    DrawText("YOU WIN!", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, PINK);
-    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, PINK);
-}
-
-bool CheckWinCondition(Block *blocks, int rows, int cols) {
-    for (int i = 0; i < rows * cols; i++) {
-        if (blocks[i].base.isActive) {
-            return false;
-        }
-    }
-    return true;
-}
-
 int main(void) {
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "BlockKuzuchi");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Block Kuzuchi");
 
     int rows = WINDOW_HEIGHT / TILE_HEIGHT;
     int cols = WINDOW_WIDTH / BLOCK_SIZE;
@@ -273,7 +274,6 @@ int main(void) {
         }
     }
 
-
     Vector2 playerPosition = {WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitPlayer(playerPosition);
 
@@ -282,98 +282,56 @@ int main(void) {
     bool gameStarted = false;
 
     while (!WindowShouldClose() && !gameStarted) {
-    BeginDrawing();
-    ClearBackground(LIGHTGRAY);
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawText("Press SPACE to start", 250, 300, 20, PINK);
+        EndDrawing();
 
-    DrawStartScreen();
-
-    if (IsKeyPressed(KEY_ENTER)) {
-        gameStarted = true;
+        if (IsKeyPressed(KEY_SPACE)) {
+            gameStarted = true;
+        }
     }
 
-    EndDrawing();
-}
+    SetTargetFPS(60);
 
-while (!WindowShouldClose()) {
-    if (gameOver) {
+    while (!WindowShouldClose()) {
+        float deltaTime = GetFrameTime();
+
+        if (gameOver) {
+            break;
+        }
+
+        UpdatePlayer(&player, deltaTime);
+        UpdateBall(&ball, &player, blocks, rows, cols, powerUps, deltaTime);
+        UpdatePowerUps(powerUps, MAX_POWERUPS, deltaTime);
+
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            HandlePowerUpCollision(&powerUps[i], &player);
+        }
+
         BeginDrawing();
-        ClearBackground(YELLOW);
-        DrawGameOver();
+        ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_ENTER)) {
-            player = InitPlayer(playerPosition);
-            ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
-            gameOver = false;
+        DrawBlocks(blocks, rows, cols);
+        DrawPlayer(&player);
+        DrawBall(&ball);
 
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols; j++) {
-                    blocks[i * cols + j].base.isActive = i < 3;
-                    blocks[i * cols + j].type = i % 3;
-                }
-            }
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            DrawPowerUp(&powerUps[i]);
+        }
 
-            for (int i = 0; i < MAX_POWERUPS; i++) {
-                powerUps[i].isActive = false;
-            }
+        DrawLifebar(&player);
+
+        if (player.lives <= 0) {
+            DrawText("Game Over!", 320, 300, 40, RED);
+        }
+
+        if (gameWon) {
+            DrawText("You Win!", 320, 300, 40, GREEN);
         }
 
         EndDrawing();
-        continue;
     }
-
-    if (gameWon) {
-        BeginDrawing();
-        ClearBackground(YELLOW);
-        DrawWinScreen();
-
-        if (IsKeyPressed(KEY_ENTER)) {
-            player = InitPlayer(playerPosition);
-            ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
-            gameWon = false;
-
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols; j++) {
-                    blocks[i * cols + j].base.isActive = i < 3;
-                    blocks[i * cols + j].type = i % 3;
-                }
-            }
-
-            for (int i = 0; i < MAX_POWERUPS; i++) {
-                powerUps[i].isActive = false;
-            }
-        }
-
-        EndDrawing();
-        continue;
-    }
-
-    float dt = GetFrameTime();
-    UpdatePlayer(&player, dt);
-    UpdateBall(&ball, &player, blocks, rows, cols, dt);
-
-    for (int i = 0; i < MAX_POWERUPS; i++) {
-        HandlePowerUpCollision(&powerUps[i], &player);
-    }
-
-    if (CheckWinCondition(blocks, rows, cols)) {
-        gameWon = true;
-    }
-
-    BeginDrawing();
-    ClearBackground(YELLOW);
-
-    DrawBlocks(blocks, rows, cols);
-    DrawPlayer(&player);
-    DrawBall(&ball);
-    DrawLifebar(&player);
-
-    for (int i = 0; i < MAX_POWERUPS; i++) {
-        DrawPowerUp(&powerUps[i]);
-    }
-
-    EndDrawing();
-}
-
 
     CloseWindow();
     return 0;
