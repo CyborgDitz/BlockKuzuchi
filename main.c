@@ -11,7 +11,8 @@
 #define BALL_SPEED 600.0f
 #define PLAYER_SPEED 600.0f
 #define MAX_POWERUPS 10
-
+bool gameOver = false;
+bool gameWon = false;
 typedef struct {
     Vector2 position;
     Vector2 velocity;
@@ -103,18 +104,21 @@ void DrawBlocks(Block *blocks, int rows, int cols) {
         }
     }
 }
-void DropPowerUp(Block *block, PowerUp *powerUps, int rows, int cols) {
-    if (!block->base.isActive) {
-        int dropChance = GetRandomValue(0, 100);
-        if (dropChance < 30) {
-            for (int i = 0; i < MAX_POWERUPS; i++) {
-                if (!powerUps[i].isActive) {
-                    powerUps[i].position = block->base.position;
-                    powerUps[i].isActive = true;
-                    powerUps[i].type = GetRandomValue(0, 1);
-                    break;
-                }
-            }
+void DropPowerUp(Block *block, PowerUp *powerUps) {
+    for (int i = 0; i < MAX_POWERUPS; i++) {
+        if (!powerUps[i].isActive) {
+            // Set the position of the power-up based on the destroyed block's position
+            powerUps[i].position = (Vector2){
+                block->base.position.x + BLOCK_SIZE / 2,  // Center it horizontally
+                block->base.position.y + TILE_HEIGHT / 2  // Center it vertically
+            };
+
+            // Assign a random type to the power-up
+            powerUps[i].type = GetRandomValue(0, 1);
+
+            // Mark the power-up as active
+            powerUps[i].isActive = true;
+            break;  // Exit the loop after assigning one power-up
         }
     }
 }
@@ -129,8 +133,13 @@ void HandlePowerUpCollision(PowerUp *powerUp, Player *player) {
         }
     }
 }
+void DestroyBlock(Block *block, Ball *ball, PowerUp *powerUps, int rows, int cols) {
+    block->base.isActive = false;
+    ball->base.velocity.y = -ball->base.velocity.y;
+    DropPowerUp(block, powerUps);
+}
 
-bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int cols) {
+bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rows, int cols, PowerUp *powerUps) {
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
         ball->base.velocity.x = -ball->base.velocity.x;
     }
@@ -146,24 +155,25 @@ bool HandleCollisions(Ball *ball, Player *player, Block *blocks, int rows, int c
 
     int col = ball->base.position.x / BLOCK_SIZE;
     int row = ball->base.position.y / TILE_HEIGHT;
+
     if (row >= 0 && row < rows && col >= 0 && col < cols) {
         Block *block = &blocks[row * cols + col];
         if (block->base.isActive) {
-            block->base.isActive = false;
-            ball->base.velocity.y = -ball->base.velocity.y;
-            DropPowerUp(block, powerUps, rows, cols);
-
+            DestroyBlock(block, ball, powerUps, rows, cols);
         }
-
     }
-
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->base.isActive = false;
         player->lives--;
+        if (player->lives >= 0) {
+            gameOver = true;
+        }
         return true;
     }
+
     return false;
 }
+
 
 void UpdatePlayer(Player *player, float dt) {
     if (IsKeyDown(KEY_A)) {
@@ -196,7 +206,7 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, f
         }
     } else {
         ball->base.position = Vector2Add(ball->base.position, Vector2Scale(ball->base.velocity, dt));
-        HandleCollisions(ball, player, blocks, rows, cols);
+        HandleBallCollisions(ball, player, blocks, rows, cols, powerUps);
     }
 }
 
@@ -258,10 +268,11 @@ int main(void) {
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            blocks[i * cols + j].base.isActive = i < 3;
-            blocks[i * cols + j].type = i % 3;
+            blocks[i * cols + j] = InitBlock((Vector2){j * BLOCK_SIZE, i * TILE_HEIGHT}, i % 3);
+            blocks[i * cols + j].base.isActive = (i < 3);
         }
     }
+
 
     Vector2 playerPosition = {WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2};
     Player player = InitPlayer(playerPosition);
@@ -269,8 +280,6 @@ int main(void) {
     Ball ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
 
     bool gameStarted = false;
-    bool gameOver = false;
-    bool gameWon = false;
 
     while (!WindowShouldClose() && !gameStarted) {
     BeginDrawing();
