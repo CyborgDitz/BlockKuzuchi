@@ -176,7 +176,19 @@ void DestroyBlock(Block *block, Ball *ball, PowerUp *powerUps, int rows, int col
     block->base.isActive = false;
     ball->base.velocity.y = -ball->base.velocity.y;
     DropPowerUp(block, powerUps);
+    bool allBlocksDestroyed = true;
+    for (int i = 0; i < rows * cols; i++) {
+        if (block[i].base.isActive) {
+            allBlocksDestroyed = false;
+            break;
+        }
+    }
+
+    if (allBlocksDestroyed) {
+        gameWon = true;
+    }
 }
+
 
 bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rows, int cols, PowerUp *powerUps) {
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
@@ -269,12 +281,48 @@ void DrawLifebar(Player *player) {
     DrawRectangle(lifebarX, lifebarY, lifebarWidth, lifebarHeight, RED);
     DrawRectangle(lifebarX, lifebarY, lifebarWidth * lifebarProgress, lifebarHeight, GREEN);
 }
+void DrawStartScreen() {
+    BeginDrawing();
+    ClearBackground(BLACK);
+    DrawText("Press SPACE to start", 250, 300, 20, PINK);
+    EndDrawing();
+}
+void DrawGameOver() {
+    DrawText("GAME OVER", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, RED);
+    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, RED);
+}
+void DrawWinScreen() {
+    DrawText("YOU WIN!", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 - 20, 50, GREEN);
+    DrawText("ENTER to Restart", WINDOW_WIDTH / 2 - 150, WINDOW_HEIGHT / 2 + 30, 30, GREEN);
+}
+void RestartGame(Player *player, Ball *ball, Block *blocks, PowerUp *powerUps, int rows, int cols) {
+    gameOver = false;
+    gameWon = false;
+
+    *player = InitPlayer((Vector2){WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2});
+
+    *ball = InitBall((Vector2){player->base.position.x + player->width / 2, player->base.position.y - 20});
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+
+            blocks[i * cols + j] = InitBlock((Vector2){j * BLOCK_SIZE, i * TILE_HEIGHT}, i % 3);
+            blocks[i * cols + j].base.isActive = (i < 3);
+        }
+    }
+
+    player->lives = 3;
+
+    for (int i = 0; i < MAX_POWERUPS; i++) {
+        powerUps[i].base.isActive = false;
+    }
+}
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Block Kuzuchi");
 
     int rows = WINDOW_HEIGHT / TILE_HEIGHT;
-    int cols = WINDOW_WIDTH / BLOCK_SIZE;
+    int cols = WINDOW_WIDTH / TILE_HEIGHT;
     Block blocks[rows * cols];
 
     for (int i = 0; i < rows; i++) {
@@ -292,57 +340,65 @@ int main(void) {
     bool gameStarted = false;
 
     while (!WindowShouldClose() && !gameStarted) {
+    float deltaTime = GetFrameTime();
+         if (IsKeyPressed(KEY_ENTER)) {
+             gameStarted = true;
+             if (IsKeyPressed(KEY_SPACE)) {
+                 gameStarted = true;
+             }
+         }
+        if (IsKeyPressed(KEY_F1)) {
+            gameOver = true;
+        }
+
+        if (IsKeyPressed(KEY_F2)) {
+            gameWon = true;
+        }
+    if (gameOver || gameWon) {
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawText("Press SPACE to start", 250, 300, 20, PINK);
-        EndDrawing();
-
-        if (IsKeyPressed(KEY_SPACE)) {
-            gameStarted = true;
-        }
-    }
-
-    SetTargetFPS(60);
-
-    while (!WindowShouldClose()) {
-        float deltaTime = GetFrameTime();
-
         if (gameOver) {
-            break;
+            DrawGameOver();
         }
-
-        UpdatePlayer(&player, deltaTime);
-        UpdateBall(&ball, &player, blocks, rows, cols, powerUps, deltaTime);
-        UpdatePowerUps(powerUps, MAX_POWERUPS, deltaTime);
-
-        for (int i = 0; i < MAX_POWERUPS; i++) {
-            HandlePowerUpCollision(&powerUps[i], &player);
-        }
-
-        BeginDrawing();
-        ClearBackground(BLACK);
-
-        DrawBlocks(blocks, rows, cols);
-        DrawPlayer(&player);
-        DrawBall(&ball);
-
-        for (int i = 0; i < MAX_POWERUPS; i++) {
-            DrawPowerUp(&powerUps[i]);
-        }
-
-        DrawLifebar(&player);
-
-        if (player.lives <= 0) {
-            DrawText("Game Over!", 320, 300, 40, RED);
-        }
-
         if (gameWon) {
-            DrawText("You Win!", 320, 300, 40, GREEN);
+            DrawWinScreen();
+        }
+        EndDrawing();
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            RestartGame(&player, &ball, blocks, powerUps, rows, cols);
         }
 
-        EndDrawing();
+        continue;
     }
+
+    UpdatePlayer(&player, deltaTime);
+    UpdateBall(&ball, &player, blocks, rows, cols, powerUps, deltaTime);
+    UpdatePowerUps(powerUps, MAX_POWERUPS, deltaTime);
+
+    for (int i = 0; i < MAX_POWERUPS; i++) {
+        HandlePowerUpCollision(&powerUps[i], &player);
+    }
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    DrawBlocks(blocks, rows, cols);
+    DrawPlayer(&player);
+    DrawBall(&ball);
+
+    for (int i = 0; i < MAX_POWERUPS; i++) {
+        DrawPowerUp(&powerUps[i]);
+    }
+
+    DrawLifebar(&player);
+
+    EndDrawing();
+
+
+}
 
     CloseWindow();
     return 0;
 }
+
