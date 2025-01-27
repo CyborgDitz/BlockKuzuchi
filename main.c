@@ -75,10 +75,16 @@ Block InitBlock(Vector2 position, int type) {
 PowerUp powerUps[MAX_POWERUPS] = {0};
 
 Vector2 ReflectBall(Ball *ball, Player *player) {
+    float paddleVelocity = player->base.velocity.x;
     float hitOffset = (ball->base.position.x - player->base.position.x) / player->width - 0.5f;
-    Vector2 direction = {hitOffset, -1.0f};
-    return Vector2Scale(Vector2Normalize(direction), ball->speed);
+    Vector2 direction = {hitOffset + paddleVelocity / PLAYER_SPEED, -1.0f};
+    Vector2 reflectedVelocity = Vector2Scale(Vector2Normalize(direction), ball->speed);
+    ball->speed *= 1.05f;
+
+    return reflectedVelocity;
 }
+
+
 
 void DrawPlayer(Player *player) {
     DrawRectangle(player->base.position.x, player->base.position.y, player->width, player->height, PURPLE);
@@ -228,6 +234,8 @@ void UpdatePlayer(Player *player, float dt) {
 
 void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, PowerUp *powerUps, float dt) {
     if (!ball->base.isActive) {
+        ball->speed = BALL_SPEED;
+
         ball->base.position.x = player->base.position.x + player->width / 2;
         ball->base.position.y = player->base.position.y - ball->radius - 5;
 
@@ -241,6 +249,8 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, int rows, int cols, P
         HandleBallCollisions(ball, player, blocks, rows, cols, powerUps);
     }
 }
+
+
 
 void DrawPowerUp(PowerUp *powerUp) {
     if (powerUp->base.isActive) {
