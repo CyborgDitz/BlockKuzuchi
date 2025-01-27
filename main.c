@@ -49,6 +49,16 @@ typedef struct {
     int type;
 } PowerUp;
 
+typedef struct {
+    Player player;
+    Ball ball;
+    Block *blocks;
+    PowerUp powerUps[MAX_POWERUPS];
+    int rowCount;
+    int columnCount;
+} GameStateData;
+
+
 GameState currentGameState = STATE_START;
 PowerUp powerUps[MAX_POWERUPS] = {0};
 
@@ -181,27 +191,71 @@ void DestroyBlock(Block *block, Ball *ball, PowerUp *powerUps, int rowCount, int
     }
     if (allBlocksGone) currentGameState = STATE_WIN;
 }
-
-bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rowCount, int columnCount, PowerUp *powerUps) {
+void HandleBallWallCollision(Ball *ball) {
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
         ball->base.velocity.x = -ball->base.velocity.x;
     }
     if (ball->base.position.y - ball->radius < 0) {
         ball->base.velocity.y = -ball->base.velocity.y;
     }
+}
+
+void HandleBallPlayerCollision(Ball *ball, Player *player) {
     Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
     Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
+
     if (CheckCollisionRecs(playerRect, ballRect)) {
-        ball->base.velocity = ReflectBall(ball, player);
+        Vector2 collisionPoint = Vector2Subtract(ball->base.position, player->base.position);
+        collisionPoint = Vector2Normalize(collisionPoint);
+
+        if (ball->base.position.x < player->base.position.x) {
+            ball->base.velocity.x = -ball->base.velocity.x;
+        }
+
+        if (ball->base.position.y < player->base.position.y) {
+            ball->base.velocity.y = -ball->base.velocity.y;
+        } else if (ball->base.position.y > player->base.position.y + player->height) {
+            ball->base.velocity.y = -ball->base.velocity.y;
+        }
+
+        ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
     }
-    int columnIndex = ball->base.position.x / BLOCK_SIZE;
-    int rowIndex = ball->base.position.y / TILE_HEIGHT;
+}
+
+void HandleBallBlockCollision(Ball *ball, Block *blocks, int rowCount, int columnCount, PowerUp *powerUps) {
+    int columnIndex = (ball->base.position.x) / BLOCK_SIZE;
+    int rowIndex = (ball->base.position.y) / TILE_HEIGHT;
     if (rowIndex >= 0 && rowIndex < rowCount && columnIndex >= 0 && columnIndex < columnCount) {
         Block *block = &blocks[rowIndex * columnCount + columnIndex];
         if (block->base.isActive) {
-            DestroyBlock(block, ball, powerUps, rowCount, columnCount);
+            Rectangle blockRect = {block->base.position.x, block->base.position.y, BLOCK_SIZE, TILE_HEIGHT};
+            Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
+
+            if (CheckCollisionRecs(ballRect, blockRect)) {
+                DestroyBlock(block, ball, powerUps, rowCount, columnCount);
+
+                Vector2 normal = {0, 0};
+
+                if (ball->base.position.x < block->base.position.x) {
+                    normal = (Vector2){1, 0};
+                } else if (ball->base.position.x > block->base.position.x + BLOCK_SIZE) {
+                    normal = (Vector2){-1, 0};
+                }
+
+                if (ball->base.position.y < block->base.position.y) {
+                    normal = (Vector2){0, 1};
+                } else if (ball->base.position.y > block->base.position.y + TILE_HEIGHT) {
+                    normal = (Vector2){0, -1};
+                }
+
+                ball->base.velocity = Vector2Reflect(ball->base.velocity, normal);
+                ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
+            }
         }
     }
+}
+
+bool HandleBallLossCondition(Ball *ball, Player *player) {
     if (ball->base.position.y + ball->radius > WINDOW_HEIGHT) {
         ball->base.isActive = false;
         player->lives--;
@@ -209,6 +263,13 @@ bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rowCoun
         return true;
     }
     return false;
+}
+
+bool HandleBallCollisions(Ball *ball, Player *player, Block *blocks, int rowCount, int columnCount, PowerUp *powerUps) {
+    HandleBallWallCollision(ball);
+    HandleBallPlayerCollision(ball, player);
+    HandleBallBlockCollision(ball, blocks, rowCount, columnCount, powerUps);
+    return HandleBallLossCondition(ball, player);
 }
 
 void UpdatePlayer(Player *player, float deltaTime) {
@@ -272,38 +333,33 @@ void DrawGame(Player *player, Ball *ball, Block *blocks, int rowCount, int colum
     for (int i = 0; i < MAX_POWERUPS; i++) DrawPowerUp(&powerUps[i]);
     DrawLifebar(player);
 }
+void RestartGame(GameStateData *gameData) {
+    gameData->rowCount = 3;
+    gameData->columnCount = WINDOW_WIDTH / BLOCK_SIZE;
 
-void RestartGame(Player *player, Ball *ball, Block *blocks, PowerUp *powerUps, int rowCount, int columnCount) {
-    currentGameState = STATE_START;
-    *player = InitPlayer((Vector2){WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2});
-    *ball = InitBall((Vector2){player->base.position.x + player->width / 2, player->base.position.y - 20});
-    for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-        for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-            blocks[rowIndex * columnCount + columnIndex] = InitBlock((Vector2){columnIndex * BLOCK_SIZE, rowIndex * TILE_HEIGHT}, rowIndex % 3);
-            blocks[rowIndex * columnIndex + columnIndex].base.isActive = (rowIndex < 3);
+    gameData->player = InitPlayer((Vector2){WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2});
+    gameData->ball = InitBall((Vector2){gameData->player.base.position.x + gameData->player.width / 2, gameData->player.base.position.y - 20});
+
+    for (int rowIndex = 0; rowIndex < gameData->rowCount; rowIndex++) {
+        for (int columnIndex = 0; columnIndex < gameData->columnCount; columnIndex++) {
+            gameData->blocks[rowIndex * gameData->columnCount + columnIndex] = InitBlock((Vector2){columnIndex * BLOCK_SIZE, rowIndex * TILE_HEIGHT}, rowIndex % 3);
+            gameData->blocks[rowIndex * gameData->columnCount + columnIndex].base.isActive = true;
         }
     }
-    player->lives = 3;
-    for (int i = 0; i < MAX_POWERUPS; i++) powerUps[i].base.isActive = false;
+
+    gameData->player.lives = 3;
+    for (int i = 0; i < MAX_POWERUPS; i++) {
+        gameData->powerUps[i].base.isActive = false;
+    }
 }
+
 
 int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Block Kuzuchi");
-    int rowCount = WINDOW_HEIGHT / TILE_HEIGHT;
-    int columnCount = WINDOW_WIDTH / TILE_HEIGHT;
-    Block blocks[rowCount * columnCount];
 
-    for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-        for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-            blocks[rowIndex * columnCount + columnIndex] = InitBlock((Vector2){columnIndex * BLOCK_SIZE, rowIndex * TILE_HEIGHT}, rowIndex % 3);
-            blocks[rowIndex * columnIndex + columnIndex].base.isActive = (rowIndex < 3);
-        }
-    }
+    GameStateData gameData;
 
-    Player player = InitPlayer((Vector2){WINDOW_WIDTH / 2 - TILE_WIDTH * 2.5f, WINDOW_HEIGHT - TILE_HEIGHT * 2});
-    Ball ball = InitBall((Vector2){player.base.position.x + player.width / 2, player.base.position.y - 20});
-
-    SetTargetFPS(60);
+    RestartGame(&gameData);
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
@@ -314,39 +370,38 @@ int main(void) {
         switch (currentGameState) {
             case STATE_START:
                 ClearBackground(BLACK);
-                DrawStartScreen();
-                if (IsKeyPressed(KEY_SPACE)) currentGameState = STATE_PLAYING;
-                break;
+            DrawStartScreen();
+            if (IsKeyPressed(KEY_SPACE)) currentGameState = STATE_PLAYING;
+            break;
 
             case STATE_PLAYING:
-                UpdatePlayer(&player, deltaTime);
-                UpdateBall(&ball, &player, blocks, rowCount, columnCount, powerUps, deltaTime);
-                UpdatePowerUps(powerUps, MAX_POWERUPS, deltaTime);
-                for (int i = 0; i < MAX_POWERUPS; i++) {
-                    HandlePowerUpCollision(&powerUps[i], &player);
-                }
-                DrawGame(&player, &ball, blocks, rowCount, columnCount, powerUps);
-                break;
+                UpdatePlayer(&gameData.player, deltaTime);
+            UpdateBall(&gameData.ball, &gameData.player, gameData.blocks, gameData.rowCount, gameData.columnCount, gameData.powerUps, deltaTime);
+            UpdatePowerUps(gameData.powerUps, MAX_POWERUPS, deltaTime);
+            for (int i = 0; i < MAX_POWERUPS; i++) {
+                HandlePowerUpCollision(&gameData.powerUps[i], &gameData.player);
+            }
+            DrawGame(&gameData.player, &gameData.ball, gameData.blocks, gameData.rowCount, gameData.columnCount, gameData.powerUps);
+            break;
 
             case STATE_OVER:
                 ClearBackground(BLACK);
-                DrawGameOverScreen();
-                if (IsKeyPressed(KEY_ENTER)) {
-                    RestartGame(&player, &ball, blocks, powerUps, rowCount, columnCount);
-                }
-                break;
+            DrawGameOverScreen();
+            if (IsKeyPressed(KEY_ENTER)) {
+                RestartGame(&gameData);
+            }
+            break;
 
             case STATE_WIN:
                 ClearBackground(BLACK);
-                DrawWinScreen();
-                if (IsKeyPressed(KEY_ENTER)) {
-                    RestartGame(&player, &ball, blocks, powerUps, rowCount, columnCount);
-                }
-                break;
+            DrawWinScreen();
+            if (IsKeyPressed(KEY_ENTER)) {
+                RestartGame(&gameData);
+            }
+            break;
         }
         EndDrawing();
     }
-
     CloseWindow();
     return 0;
 }
