@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+CMakeLists.txt
+.idea/vcs.xml
+.idea/modules.xml
+.idea/encodings.xml
+.idea/editor.xml
+.idea/BlockKuzuchi.iml
+.idea/workspace.xml
