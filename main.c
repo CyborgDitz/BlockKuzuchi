@@ -258,6 +258,7 @@ void HandleBallPlayerCollision(Ball *ball, Player *player) {
         }
 
         ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
+        ball->speed *= 1.03f;
     }
 }
 
@@ -363,7 +364,6 @@ void RestartGame(GameStateData *gameData) {
         gameData->powerUps[i].base.isActive = false;
     }
 }
-
 void UpdateGameState(GameStateData *gameData, float deltaTime) {
     switch (game_state) {
         case GAME_START:
@@ -395,8 +395,15 @@ void UpdateGameState(GameStateData *gameData, float deltaTime) {
                 if (allBlocksDestroyed) {
                     game_state = GAME_WON;
                 }
+                if (IsKeyPressed(KEY_F1)) {
+                    game_state = GAME_WON;
+                }
+                if (IsKeyPressed(KEY_F2)) {
+                    game_state = GAME_OVER;
+                }
+                break;
             }
-            break;
+
 
         case GAME_OVER:
             if (IsKeyPressed(KEY_ENTER)) {
