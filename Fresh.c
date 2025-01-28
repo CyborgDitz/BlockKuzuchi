@@ -250,18 +250,19 @@ void BallWallCollision(Ball *ball) {
 }
 
 void BallPlayerCollision(Ball *ball, Player *player) {
-    Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
-    Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
 
-    if (CheckCollisionRecs(playerRect, ballRect)) {
-        Vector2 collisionPoint = Vector2Subtract(ball->base.position, player->base.position);
-        collisionPoint = Vector2Normalize(collisionPoint);
-        ball->base.velocity = Vector2Reflect(ball->base.velocity, collisionPoint);
-        ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
-    }
+  Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
+  if (CheckCollisionCircleRec(ball->base.position, ball->radius, playerRect)) {
+
+    Vector2 collisionPoint = Vector2Subtract(ball->base.position, player->base.position);
+    collisionPoint = Vector2Normalize(collisionPoint);
+    ball->base.velocity = Vector2Reflect(ball->base.velocity, collisionPoint);
+    ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
+  }
 }
 
-void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid,PowerUp *powerUps) {
+
+void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid, PowerUp *powerUps) {
     int columnIndex = ball->base.position.x / grid->cellWidth;
     int rowIndex = ball->base.position.y / grid->cellHeight;
 
@@ -272,7 +273,6 @@ void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid,PowerUp *pow
             Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
 
             if (CheckCollisionRecs(ballRect, blockRect)) {
-
                 block->base.isActive = false;
                 Vector2 normal = {0, 0};
 
@@ -289,11 +289,11 @@ void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid,PowerUp *pow
                 }
                 ball->base.velocity = Vector2Reflect(ball->base.velocity, normal);
 
-              DropPowerUp(block, powerUps, grid);
+                DropPowerUp(block, powerUps, grid);
             }
         }
     }
-}
+};
 
 void PowerUpCollision(PowerUp *powerUp, Player *player) {
   Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
