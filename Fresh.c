@@ -135,18 +135,27 @@ void DrawBlocks(Block *blocks, const Grid *grid) {
 //todo draw powerup, w grid ref
 
 //todo updates
-void UpdatePlayer(Player *player, float dt){
-  if(IsKeyDown(KEY_A)){
-   player->base.velocity.x = (-PLAYER_SPEED)*(1.003*dt);
-  }
-  if(IsKeyDown(KEY_D)){
-    player->base.velocity.x = (PLAYER_SPEED)*(1.003*dt);
-  }
-    else {
-    player->base.velocity.x = 0;
-    }
+void UpdatePlayer(Player *player, float dt) {
+  int movementDir = 0;
 
-};
+  if (IsKeyDown(KEY_A)) {
+    movementDir = -1;
+  }
+  else if (IsKeyDown(KEY_D)) {
+    movementDir = 1;
+  }
+  switch (movementDir) {
+    case -1:
+      player->base.velocity.x = -PLAYER_SPEED * (1.003f * dt);
+    break;
+    case 1:
+      player->base.velocity.x = PLAYER_SPEED * (1.003f * dt);
+    break;
+    default:
+      player->base.velocity.x = 0.0f;
+    break;
+  }
+}
 
   void UpdateGameState(void) {
     switch (game_state) {
