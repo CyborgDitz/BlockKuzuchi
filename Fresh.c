@@ -86,6 +86,20 @@ Vector2 GetGridCellPosition(const Grid *grid, int rowIndex, int colIndex) {
     rowIndex * grid->cellHeight
   };
 };
+typedef void (*PowerUpEffect)(Player *player);
+
+void PowerUpExtraLife(Player *player) {
+  player->lives++;
+}
+
+void PowerUpIncreasePaddleWidth(Player *player) {
+  player->width += TILE_WIDTH / 2;
+}
+
+PowerUpEffect powerUpEffects[] = {
+  PowerUpExtraLife,
+  PowerUpIncreasePaddleWidth
+};
 
 void DrawPlayer(Player *player){
     DrawRectangle(player->base.position.x, player->base.position.y, player->width, player->height, PURPLE);
@@ -179,6 +193,30 @@ Grid InitGrid(int rows, int cols, int cellWidth, int cellHeight) {
   grid.cellHeight = cellHeight;
   return grid;
 };
+void DropPowerUp(Block *block, PowerUp *powerUps, const Grid *grid) {
+  if (GetRandomValue(0, 100) < DROP_CHANCE * 100) {
+    int rowIndex = (block->base.position.y / grid->cellHeight);
+    int columnIndex = (block->base.position.x / grid->cellWidth);
+
+    if (rowIndex >= 0 && rowIndex < grid->rows && columnIndex >= 0 && columnIndex < grid->cols) {
+      for (int i = 0; i < MAX_POWERUPS; i++) {
+        if (!powerUps[i].base.isActive) {
+          powerUps[i].base.position = (Vector2){
+            columnIndex * grid->cellWidth + grid->cellWidth / 2,
+            rowIndex * grid->cellHeight + grid->cellHeight / 2
+          };
+
+          powerUps[i].base.velocity = (Vector2){0, 100.0f};
+          powerUps[i].pType = GetRandomValue(0, 1);
+          powerUps[i].base.isActive = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
+
 
 void SetupGame(Game *game) {
   int startPositionX = (WINDOW_WIDTH /2 - TILE_WIDTH * 2);
@@ -220,7 +258,7 @@ void BallPlayerCollision(Ball *ball, Player *player) {
     }
 }
 
-void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid /*, PowerUp *powerUps*/) {
+void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid,PowerUp *powerUps) {
     int columnIndex = ball->base.position.x / grid->cellWidth;
     int rowIndex = ball->base.position.y / grid->cellHeight;
 
@@ -249,12 +287,21 @@ void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid /*, PowerUp 
                 ball->base.velocity = Vector2Reflect(ball->base.velocity, normal);
 
 
-                // DropPowerUp(block, powerUps);
+                DropPowerUp(block, powerUps);
             }
         }
     }
 }
 
+void PowerUpCollision(PowerUp *powerUp, Player *player) {
+  Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
+  Rectangle powerUpRect = {powerUp->base.position.x, powerUp->base.position.y, 20, 20};
+
+  if (powerUp->base.isActive && CheckCollisionRecs(playerRect, powerUpRect)) {
+    powerUp->base.isActive = false;
+    powerUpEffects[powerUp->pType](player);
+  }
+};
 
 
 void UpdatePlayer(Player *player, float dt) {
@@ -300,7 +347,16 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, flo
   BallPlayerCollision(ball, player);
   BallBlockCollision(ball, blocks, grid /**, powerUps**/);
 };
-
+void UpdatePowerUps(PowerUp *powerUps, int maxPowerUps, float dt) {
+  for (int i = 0; i < maxPowerUps; i++) {
+    if (powerUps[i].base.isActive) {
+      powerUps[i].base.position.y += powerUps[i].base.velocity.y * dt;
+      if (powerUps[i].base.position.y > WINDOW_HEIGHT) {
+        powerUps[i].base.isActive = false;
+      }
+    }
+  }
+}
 
 void UpdateGameState(Game *game) {
   switch (game_state) {
