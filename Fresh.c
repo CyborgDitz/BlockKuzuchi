@@ -28,7 +28,7 @@ typedef struct {
     Entity base;
     float width;
     float height;
-    int lives
+    int lives;
   } Player;
 
   typedef struct {
@@ -69,7 +69,7 @@ typedef struct {
 
 
     Player InitPlayer(Vector2 position) {
-      Player player = {0};
+      Player player;
       player.base.position = position;
       player.width = TILE_WIDTH * 5;
       player.height = TILE_HEIGHT;
@@ -78,7 +78,7 @@ typedef struct {
     };
 
     Ball InitBall(Vector2 position){
-      Ball ball = {0};
+      Ball ball;
       ball.base.position = position;
       ball.speed = BALL_SPEED;
       ball.radius = 16.0f;
@@ -86,19 +86,20 @@ typedef struct {
     };
 
     Block InitBlock(Vector2 position,int bType){
-      Block block = {0};
+      Block block;
       block.base.position = position;
       block.base.isActive = true;
       block.bType = bType;
       return block;
     };
 
-   Grid InitGrid(Grid* grid, int rows, int cols, int cellWidth, int cellHeight) {
-    grid->rows       = rows;
-    grid->cols       = cols;
-    grid->cellWidth  = cellWidth;
-    grid->cellHeight = cellHeight;
-    return *grid;
+   Grid InitGrid(int rows, int cols, int cellWidth, int cellHeight) {
+     Grid grid;
+      grid.rows       = rows;
+      grid.cols       = cols;
+      grid.cellWidth  = cellWidth;
+      grid.cellHeight = cellHeight;
+      return grid;
   };
 
 LifeBar getLifeBar = {
@@ -115,7 +116,7 @@ Vector2 GetGridCellPosition(const Grid *grid, int rowIndex, int colIndex) {
   return (Vector2){
     colIndex * grid->cellWidth,
     rowIndex * grid->cellHeight
-};
+  };
 }
 
 
@@ -128,7 +129,7 @@ Vector2 GetGridCellPosition(const Grid *grid, int rowIndex, int colIndex) {
 
   void DrawBall(Ball *ball){
     DrawCircleV(ball->base.position, ball->radius, PINK);
-    DrawCircleLines(ball->base.position.x, ball->base.position.x, ball->radius, DARKPURPLE);
+    DrawCircleLines(ball->base.position.x, ball->base.position.y, ball->radius, DARKPURPLE);
   };
 
 void DrawBlocks(Block *blocks, const Grid *grid) {
@@ -150,13 +151,38 @@ void DrawBlocks(Block *blocks, const Grid *grid) {
 }
 void DrawLifeBar(Player *player){
   float healthPercentage = (float)player->lives / 3.0f;
-
   float barX = (WINDOW_WIDTH - getLifeBar.width) / 2.0f;
-  float barY = (WINDOW_HEIGHT - getLifeBar.height) - LifeBar.offsetY;
+  float barY = (WINDOW_HEIGHT - getLifeBar.height) - getLifeBar.offsetY;
+  float fillWidth = getLifeBar.width * healthPercentage;
 
   DrawRectangle(barX, barY, getLifeBar.width, getLifeBar.height, getLifeBar.backColor);
-  DrawRectangle(barX, barY, getLifeBar.width, getLifeBar.height, getLifeBar.frontColor);
+  DrawRectangle(barX, barY, fillWidth, getLifeBar.height, getLifeBar.frontColor);
 }
+void DrawStartScreen( ){
+  DrawText("Press SPACE to start", 250,300, 20, PINK);
+  };
+
+void DrawGameOverScreen() {
+    DrawText("GAME OVER", WINDOW_WIDTH /2 -150, WINDOW_HEIGHT / 2 - 20, 50, RED);
+    DrawText("Enter to Restart", WINDOW_WIDTH / 2 -150, WINDOW_HEIGHT / 2 + 30, 50, RED);
+  }
+  void DrawWinScreen(){
+    DrawText("YOU WIN!", WINDOW_WIDTH / 2 -150, WINDOW_HEIGHT / 2 - 20, 50, GREEN);
+    DrawText("Press Enter to Restart", WINDOW_WIDTH / 2 -150, WINDOW_HEIGHT / 2 + 30, 50, PINK);
+    }
+
+    void DrawGame(Player *player, Ball *ball, Block *blocks, const Grid *grid) {
+        ClearBackground(BLACK);
+        DrawBlocks(blocks, grid);
+        DrawPlayer(player);
+        DrawBall(ball);
+        DrawLifeBar(player);
+    };
+
+  void RestartGame(Game *game){
+    game->
+
+
 //todo draw powerup, w grid ref
 
 //todo updates

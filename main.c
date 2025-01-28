@@ -303,7 +303,7 @@ void DrawPowerUp(PowerUp *powerUp) {
 
 void DrawLifebar(Player *player) {
     float barWidth = 200.0f;
-    float barHeight = 20.0f;
+    float barHeight = 20void.0f;
     float healthPercentage = (float)player->lives / 3.0f;
     float barX = (WINDOW_WIDTH - barWidth) / 2;
     float barY = WINDOW_HEIGHT - barHeight - 5;
