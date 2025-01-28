@@ -51,8 +51,15 @@ typedef struct {
   int cellWidth;
   int cellHeight;
 } Grid;
-  typedef struct {
-    Player player;
+typedef struct {
+  float width;
+  float height;
+  float offsetY;
+  Color backColor;
+  Color frontColor;
+}  LifeBar;
+typedef struct {
+   Player player;
     Ball ball;
     Block block;
     PowerUp powerUp[MAX_POWERUPS];
@@ -85,6 +92,7 @@ typedef struct {
       block.bType = bType;
       return block;
     };
+
    Grid InitGrid(Grid* grid, int rows, int cols, int cellWidth, int cellHeight) {
     grid->rows       = rows;
     grid->cols       = cols;
@@ -92,6 +100,15 @@ typedef struct {
     grid->cellHeight = cellHeight;
     return *grid;
   };
+
+LifeBar getLifeBar = {
+  .width     = 200.0f,
+  .height    = 20.0f,
+  .offsetY   = 5.0f,
+  .backColor = RED,
+  .frontColor= GREEN
+};
+
 GameState game_state = GAME_START;
 
 Vector2 GetGridCellPosition(const Grid *grid, int rowIndex, int colIndex) {
@@ -131,7 +148,15 @@ void DrawBlocks(Block *blocks, const Grid *grid) {
     }
   }
 }
+void DrawLifeBar(Player *player){
+  float healthPercentage = (float)player->lives / 3.0f;
 
+  float barX = (WINDOW_WIDTH - getLifeBar.width) / 2.0f;
+  float barY = (WINDOW_HEIGHT - getLifeBar.height) - LifeBar.offsetY;
+
+  DrawRectangle(barX, barY, getLifeBar.width, getLifeBar.height, getLifeBar.backColor);
+  DrawRectangle(barX, barY, getLifeBar.width, getLifeBar.height, getLifeBar.frontColor);
+}
 //todo draw powerup, w grid ref
 
 //todo updates
@@ -156,6 +181,27 @@ void UpdatePlayer(Player *player, float dt) {
     break;
   }
 }
+
+void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, float dt) {
+  ball->speed = BALL_SPEED;
+  if(!ball->base.isActive)
+  {
+    Vector2 ballStartPos = {
+      player->base.position.x + player->width * 0.5f,
+      player->base.position.y - (ball->radius + 5.0f)
+    };
+    ball->base.position = ballStartPos;
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+      Vector2 direction = Vector2Subtract(GetMousePosition(), ballStartPos);
+      ball->base.velocity = direction;
+      ball->base.isActive = true;
+    }
+  } else
+    {ball->base.position = Vector2Add(ball->base.position, Vector2Scale(ball->base.velocity,dt));}
+  //todo add collisions
+}
+
 
   void UpdateGameState(void) {
     switch (game_state) {
