@@ -66,8 +66,8 @@ typedef struct {
    Player player;
     Ball ball;
     Block block[3 * 10];
-    PowerUp powerUp[MAX_POWERUPS];
-    Grid grid
+    PowerUp powerUps[MAX_POWERUPS];
+    Grid grid;
 } Game;
 
 LifeBar getLifeBar = {
@@ -114,7 +114,6 @@ void DrawBall(Ball *ball){
 void DrawBlocks(Block *blocks, const Grid *grid) {
   for (int rowIndex = 0; rowIndex < grid->rows; rowIndex++) {
     for (int columnIndex = 0; columnIndex < grid->cols; columnIndex++) {
-
       int index = rowIndex * grid->cols + columnIndex;
       Block *block = &blocks[index];
       if (block->base.isActive) {
@@ -128,6 +127,7 @@ void DrawBlocks(Block *blocks, const Grid *grid) {
     }
   }
 };
+
 
 void DrawLifeBar(Player *player){
   float healthPercentage = (float)player->lives / 3.0f;
@@ -185,14 +185,19 @@ Block InitBlock(Vector2 position,int bType){
   return block;
 };
 
-Grid InitGrid(int rows, int cols, int cellWidth, int cellHeight) {
+Grid InitGrid(int rows, int cols) {
   Grid grid;
-  grid.rows       = rows;
-  grid.cols       = cols;
-  grid.cellWidth  = cellWidth;
-  grid.cellHeight = cellHeight;
+  grid.rows = rows;
+  grid.cols = cols;
+
+  grid.cellWidth = TILE_WIDTH* 3;
+  grid.cellHeight = TILE_HEIGHT;
+
   return grid;
-};
+}
+
+
+
 void DropPowerUp(Block *block, PowerUp *powerUps, const Grid *grid) {
   if (GetRandomValue(0, 100) < DROP_CHANCE * 100) {
     int rowIndex = (block->base.position.y / grid->cellHeight);
@@ -217,25 +222,23 @@ void DropPowerUp(Block *block, PowerUp *powerUps, const Grid *grid) {
 }
 
 
-
 void SetupGame(Game *game) {
-  int startPositionX = (WINDOW_WIDTH /2 - TILE_WIDTH * 2);
+  int startPositionX = (WINDOW_WIDTH / 2 - TILE_WIDTH * 2);
   int startPositionY = (WINDOW_HEIGHT - TILE_HEIGHT * 2);
-game->player = InitPlayer((Vector2){startPositionX,startPositionY});
-game->ball = InitBall (game->player.base.position);
 
-Grid grid =InitGrid(3, 10, TILE_WIDTH, TILE_HEIGHT);
+  game->player = InitPlayer((Vector2){startPositionX, startPositionY});
+  game->ball = InitBall(game->player.base.position);
 
+  Grid grid = InitGrid(3, 10);
   for (int rowIndex = 0; rowIndex < grid.rows; rowIndex++) {
     for (int columnIndex = 0; columnIndex < grid.cols; columnIndex++) {
       Vector2 position = GetGridCellPosition(&grid, rowIndex, columnIndex);
       int blockType = (rowIndex + columnIndex) % 3;
       game->block[rowIndex * grid.cols + columnIndex] = InitBlock(position, blockType);
     }
-
   }
   game->grid = grid;
-};
+}
 
 void BallWallCollision(Ball *ball) {
     if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
@@ -286,8 +289,7 @@ void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid,PowerUp *pow
                 }
                 ball->base.velocity = Vector2Reflect(ball->base.velocity, normal);
 
-
-                DropPowerUp(block, powerUps);
+              DropPowerUp(block, powerUps, grid);
             }
         }
     }
@@ -305,28 +307,20 @@ void PowerUpCollision(PowerUp *powerUp, Player *player) {
 
 
 void UpdatePlayer(Player *player, float dt) {
-  int movementDir = 0;
-
   if (IsKeyDown(KEY_A)) {
-    movementDir = -1;
+    player->base.velocity.x = -PLAYER_SPEED * dt;
+  } else if (IsKeyDown(KEY_D)) {
+    player->base.velocity.x = PLAYER_SPEED * dt;
+  } else {
+    player->base.velocity.x = 0.0f;
   }
-  else if (IsKeyDown(KEY_D)) {
-    movementDir = 1;
-  }
-  switch (movementDir) {
-    case -1:
-      player->base.velocity.x = -PLAYER_SPEED * (1.003f * dt);
-    break;
-    case 1:
-      player->base.velocity.x = PLAYER_SPEED * (1.003f * dt);
-    break;
-    default:
-      player->base.velocity.x = 0.0f;
-    break;
-  }
+
+  player->base.position.x += player->base.velocity.x;
 }
 
-void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, float dt) {
+
+
+void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, PowerUp *powerUps, float dt) {
   ball->speed = BALL_SPEED;
   if(!ball->base.isActive)
   {
@@ -345,7 +339,8 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, flo
     {ball->base.position = Vector2Add(ball->base.position, Vector2Scale(ball->base.velocity,dt));}
   BallWallCollision(ball);
   BallPlayerCollision(ball, player);
-  BallBlockCollision(ball, blocks, grid /**, powerUps**/);
+  BallBlockCollision(ball, blocks, grid, powerUps);
+
 };
 void UpdatePowerUps(PowerUp *powerUps, int maxPowerUps, float dt) {
   for (int i = 0; i < maxPowerUps; i++) {
@@ -419,7 +414,7 @@ int main(void) {
     float dt = GetFrameTime();
 
     UpdatePlayer(&game.player, dt);
-    UpdateBall(&game.ball, &game.player, game.block, &game.grid, dt);
+    UpdateBall(&game.ball, &game.player, game.block, &game.grid, &game.powerUps, dt);
     UpdateGameState(&game);
 
     BeginDrawing();
