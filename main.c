@@ -28,7 +28,7 @@ typedef struct {
 
 typedef struct {
     Entity base;
-    float speed;
+    float speed; //todo check vs define
     float radius;
 } Ball;
 
@@ -370,7 +370,7 @@ int main(void) {
         switch (currentGameState) {
             case STATE_START:
                 ClearBackground(BLACK);
-            DrawStartScreen();
+                DrawStartScreen();
             if (IsKeyPressed(KEY_SPACE)) currentGameState = STATE_PLAYING;
             break;
 
