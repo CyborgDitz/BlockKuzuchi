@@ -302,45 +302,76 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, flo
 };
 
 
-void UpdateGameState(void) {
-    switch (game_state) {
-      case GAME_START:
-        ClearBackground(BLACK);
-        DrawStartScreen();
-        if (IsKeyPressed(KEY_SPACE)) {
-          game_state = GAME_PLAYING;
-        }
-      break;
-      case GAME_PLAYING:
+void UpdateGameState(Game *game) {
+  switch (game_state) {
+    case GAME_START:
+      ClearBackground(BLACK);
+    DrawStartScreen();
+    if (IsKeyPressed(KEY_SPACE)) {
+      game_state = GAME_PLAYING;
+    }
+    break;
 
+    case GAME_PLAYING:
+        if (game->player.lives <= 0) {
+          game_state = GAME_OVER;
+        }
+    bool allBlocksDestroyed = true;
+    for (int i = 0; i < 3 * 10; i++) {
+      if (game->block[i].base.isActive) {
+        allBlocksDestroyed = false;
+        break;
+      }
+    }
+
+    if (allBlocksDestroyed) {
+      game_state = GAME_WON;
+    }
+    ClearBackground(BLACK);
+    DrawGame(&game->player, &game->ball, game->block, &game->grid);
+    break;
+
+    case GAME_OVER:
+      ClearBackground(BLACK);
+    DrawGameOverScreen();
+    if (IsKeyPressed(KEY_SPACE)) {
+      game_state = GAME_START;
+      SetupGame(game);
+    }
+    break;
+
+    case GAME_WON:
+      ClearBackground(BLACK);
+    DrawWinScreen();
+    if (IsKeyPressed(KEY_SPACE)) {
+      game_state = GAME_START;
+      SetupGame(game);
+    }
+    break;
+
+    default:
       break;
-      case GAME_OVER:
-         ClearBackground(BLACK);
-         DrawGameOverScreen();
-         if (IsKeyPressed(KEY_SPACE)) {
-           game_state = GAME_START;
-         }
-      break;
-      case GAME_WON:
-          ClearBackground(BLACK);
-          DrawWinScreen();
-          if (IsKeyPressed(KEY_SPACE)) {
-            game_state = GAME_START;
-          }
-      break;
-   }
+  }
 }
+
 int main(void) {
   InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Pink Kuzhuchi");
   Game game;
   SetupGame(&game);
 
   while (!WindowShouldClose()) {
-    float dt=GetFrameTime();
-    UpdatePlayer(&game,dt);
+    float dt = GetFrameTime();
+
+    UpdatePlayer(&game.player, dt);
+    UpdateBall(&game.ball, &game.player, game.block, &game.grid, dt);
+    UpdateGameState(&game);
+
     BeginDrawing();
 
-    switch(game_state){
-      case GAME_PLAYING
-
+    EndDrawing();
   }
+  CloseWindow();
+  return 0;
+}
+
+
