@@ -85,8 +85,7 @@ Vector2 GetGridCellPosition(const Grid *grid, int rowIndex, int colIndex) {
     colIndex * grid->cellWidth,
     rowIndex * grid->cellHeight
   };
-}
-
+};
 
 void DrawPlayer(Player *player){
     DrawRectangle(player->base.position.x, player->base.position.y, player->width, player->height, PURPLE);
@@ -200,6 +199,64 @@ Grid grid =InitGrid(3, 10, TILE_WIDTH, TILE_HEIGHT);
   game->grid = grid;
 };
 
+void BallWallCollision(Ball *ball) {
+    if (ball->base.position.x - ball->radius < 0 || ball->base.position.x + ball->radius > WINDOW_WIDTH) {
+        ball->base.velocity.x = -ball->base.velocity.x;
+    }
+    if (ball->base.position.y - ball->radius < 0) {
+        ball->base.velocity.y = -ball->base.velocity.y;
+    }
+}
+
+void BallPlayerCollision(Ball *ball, Player *player) {
+    Rectangle playerRect = {player->base.position.x, player->base.position.y, player->width, player->height};
+    Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
+
+    if (CheckCollisionRecs(playerRect, ballRect)) {
+        Vector2 collisionPoint = Vector2Subtract(ball->base.position, player->base.position);
+        collisionPoint = Vector2Normalize(collisionPoint);
+        ball->base.velocity = Vector2Reflect(ball->base.velocity, collisionPoint);
+        ball->base.velocity = Vector2Scale(Vector2Normalize(ball->base.velocity), ball->speed);
+    }
+}
+
+void BallBlockCollision(Ball *ball, Block *blocks, const Grid *grid /*, PowerUp *powerUps*/) {
+    int columnIndex = ball->base.position.x / grid->cellWidth;
+    int rowIndex = ball->base.position.y / grid->cellHeight;
+
+    if (rowIndex >= 0 && rowIndex < grid->rows && columnIndex >= 0 && columnIndex < grid->cols) {
+        Block *block = &blocks[rowIndex * grid->cols + columnIndex];
+        if (block->base.isActive) {
+            Rectangle blockRect = {block->base.position.x, block->base.position.y, grid->cellWidth, grid->cellHeight};
+            Rectangle ballRect = {ball->base.position.x - ball->radius, ball->base.position.y - ball->radius, ball->radius * 2, ball->radius * 2};
+
+            if (CheckCollisionRecs(ballRect, blockRect)) {
+
+                block->base.isActive = false;
+                Vector2 normal = {0, 0};
+
+                if (ball->base.position.x < block->base.position.x) {
+                    normal.x = 1;
+                } else if (ball->base.position.x > block->base.position.x + grid->cellWidth) {
+                    normal.x = -1;
+                }
+
+                if (ball->base.position.y < block->base.position.y) {
+                    normal.y = 1;
+                } else if (ball->base.position.y > block->base.position.y + grid->cellHeight) {
+                    normal.y = -1;
+                }
+                ball->base.velocity = Vector2Reflect(ball->base.velocity, normal);
+
+
+                // DropPowerUp(block, powerUps);
+            }
+        }
+    }
+}
+
+
+
 void UpdatePlayer(Player *player, float dt) {
   int movementDir = 0;
 
@@ -239,7 +296,9 @@ void UpdateBall(Ball *ball, Player *player, Block *blocks, const Grid *grid, flo
     }
   } else
     {ball->base.position = Vector2Add(ball->base.position, Vector2Scale(ball->base.velocity,dt));}
-  
+  BallWallCollision(ball);
+  BallPlayerCollision(ball, player);
+  BallBlockCollision(ball, blocks, grid /**, powerUps**/);
 };
 
 
